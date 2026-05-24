@@ -1,0 +1,70 @@
+# ROS2 Build and Install directories
+build/
+install/
+log/
+devel/
+
+# Python cache and compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# C++ and build artifacts
+*.o
+*.a
+*.la
+*.lo
+*.so.*
+cmake_install.cmake
+CMakeCache.txt
+CMakeFiles/
+Makefile
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+*.sublime-project
+*.sublime-workspace
+
+# Python virtual environments
+venv/
+env/
+ENV/
+
+# Gazebo and simulation files
+.gazebo/
+*.log
+.ros2_backup/
+
+# Catkin/ROS build directories (if applicable)
+.catkin_tools/
+devel_isolated/
+
+# Package dependencies
+src/
+node_modules/
+
+# Temporary and local files
+*.tmp
+*.bak
+.~*
+
+# pytest cache
+.pytest_cache/
+
+# Coverage reports
+.coverage
+htmlcov/
+
+# Colcon workspace files
+.colcon/
+
+# ROS development environment
+.devcontainer/

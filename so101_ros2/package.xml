@@ -9,7 +9,11 @@
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
+  <exec_depend>so101_bringup</exec_depend>
   <exec_depend>so101_description</exec_depend>
+  <exec_depend>so101_gazebo</exec_depend>
+  <exec_depend>so101_moveit_config</exec_depend>
+  <exec_depend>so101_system_tests</exec_depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="so101">
+    <xacro:arg name="robot_name" default="so101"/>
+    <xacro:arg name="prefix" default=""/>
+    <xacro:arg name="use_gazebo" default="false"/>
+
+    <xacro:include filename="$(find so101_description)/urdf/so101_robot.urdf.xacro"/>
+    <xacro:so101_robot use_gazebo="$(arg use_gazebo)"/>
+
+    <xacro:include filename="$(find so101_description)/urdf/control/gazebo_sim_ros2_control.urdf.xacro"/>
+    <xacro:load_gazebo_sim_ros2_control_plugin
+        robot_name="$(arg robot_name)"
+        use_gazebo="$(arg use_gazebo)"/>
+
+    <xacro:include filename="$(find so101_description)/urdf/control/so101_ros2_control.urdf.xacro"/>
+    <xacro:so101_ros2_control
+        prefix="$(arg prefix)"
+        use_gazebo="$(arg use_gazebo)"/>
+</robot>

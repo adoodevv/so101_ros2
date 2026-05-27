@@ -2,11 +2,15 @@
 """
 Launch RViz visualization for the SO-101 arm.
 
-This launch file sets up robot state publisher, joint state publisher, and RViz2
-for visualizing the SO-101 arm URDF interactively.
+This launch file sets up robot state publisher, joint state publisher, and RViz2.
+It processes the URDF/XACRO model and generates ros2_control configuration when
+simulation support is enabled.
 """
+import os
+from pathlib import Path
+
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.conditions import IfCondition
 from launch.substitutions import Command, LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
@@ -14,15 +18,69 @@ from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
 
 
+def process_ros2_controllers_config(context):
+    """Process the ROS 2 controller configuration yaml file before loading the URDF."""
+    prefix = LaunchConfiguration('prefix').perform(context)
+    robot_name = LaunchConfiguration('robot_name').perform(context)
+    use_gazebo = LaunchConfiguration('use_gazebo').perform(context)
+
+    if use_gazebo != 'true':
+        return []
+
+    home = str(Path.home())
+
+    src_config_path = os.path.join(
+        home,
+        'ros2_ws/src/so101_ros2/so101_moveit_config/config',
+        robot_name
+    )
+    install_config_path = os.path.join(
+        home,
+        'ros2_ws/install/so101_moveit_config/share/so101_moveit_config/config',
+        robot_name
+    )
+
+    template_path = os.path.join(src_config_path, 'ros2_controllers_template.yaml')
+    if not os.path.isfile(template_path):
+        return []
+
+    with open(template_path, 'r', encoding='utf-8') as file:
+        template_content = file.read()
+
+    processed_content = template_content.replace('${prefix}', prefix)
+
+    for config_path in [src_config_path, install_config_path]:
+        os.makedirs(config_path, exist_ok=True)
+        output_path = os.path.join(config_path, 'ros2_controllers.yaml')
+        with open(output_path, 'w', encoding='utf-8') as file:
+            file.write(processed_content)
+
+    return []
+
+
+ARGUMENTS = [
+    DeclareLaunchArgument('robot_name', default_value='so101',
+                          description='Name of the robot'),
+    DeclareLaunchArgument('prefix', default_value='',
+                          description='Prefix for robot joints and links'),
+    DeclareLaunchArgument('use_camera', default_value='false',
+                          choices=['true', 'false'],
+                          description='Whether to use the RGBD Gazebo plugin for point cloud'),
+    DeclareLaunchArgument('use_gazebo', default_value='false',
+                          choices=['true', 'false'],
+                          description='Whether to use Gazebo simulation'),
+]
+
+
 def generate_launch_description():
     """Generate the launch description for SO-101 arm visualization."""
     urdf_package = 'so101_description'
-    urdf_filename = 'robot.urdf'
+    urdf_filename = 'so101.urdf.xacro'
     rviz_config_filename = 'robot_arm_description.rviz'
 
     pkg_share = FindPackageShare(urdf_package)
     default_urdf_model_path = PathJoinSubstitution(
-        [pkg_share, 'urdf', urdf_filename])
+        [pkg_share, 'urdf', 'robots', urdf_filename])
     default_rviz_config_path = PathJoinSubstitution(
         [pkg_share, 'rviz', rviz_config_filename])
 
@@ -65,9 +123,12 @@ def generate_launch_description():
         default_value='false',
         description='Use simulation (Gazebo) clock if true')
 
-    robot_description_content = ParameterValue(
-        Command(['cat ', urdf_model]),
-        value_type=str)
+    robot_description_content = ParameterValue(Command([
+        'xacro', ' ', urdf_model, ' ',
+        'robot_name:=', LaunchConfiguration('robot_name'), ' ',
+        'prefix:=', LaunchConfiguration('prefix'), ' ',
+        'use_gazebo:=', LaunchConfiguration('use_gazebo')
+    ]), value_type=str)
 
     start_robot_state_publisher_cmd = Node(
         package='robot_state_publisher',
@@ -100,15 +161,20 @@ def generate_launch_description():
         arguments=['-d', rviz_config_file],
         parameters=[{'use_sim_time': use_sim_time}])
 
-    return LaunchDescription([
-        declare_jsp_gui_cmd,
-        declare_rviz_config_file_cmd,
-        declare_urdf_model_path_cmd,
-        declare_use_jsp_cmd,
-        declare_use_rviz_cmd,
-        declare_use_sim_time_cmd,
-        start_joint_state_publisher_cmd,
-        start_joint_state_publisher_gui_cmd,
-        start_robot_state_publisher_cmd,
-        start_rviz_cmd,
-    ])
+    ld = LaunchDescription(ARGUMENTS)
+
+    ld.add_action(OpaqueFunction(function=process_ros2_controllers_config))
+
+    ld.add_action(declare_jsp_gui_cmd)
+    ld.add_action(declare_rviz_config_file_cmd)
+    ld.add_action(declare_urdf_model_path_cmd)
+    ld.add_action(declare_use_jsp_cmd)
+    ld.add_action(declare_use_rviz_cmd)
+    ld.add_action(declare_use_sim_time_cmd)
+
+    ld.add_action(start_joint_state_publisher_cmd)
+    ld.add_action(start_joint_state_publisher_gui_cmd)
+    ld.add_action(start_robot_state_publisher_cmd)
+    ld.add_action(start_rviz_cmd)
+
+    return ld

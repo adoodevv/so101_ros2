@@ -1,0 +1,10 @@
+moveit_setup_assistant_config:
+  URDF:
+    package: so101_description
+    relative_path: urdf/robots/so101.urdf.xacro
+  SRDF:
+    relative_path: config/so101/so101.srdf
+  CONFIG:
+    author_name: adoodevv
+    author_email: adoojonathan412@gmail.com
+    generated_timestamp: 1734048000

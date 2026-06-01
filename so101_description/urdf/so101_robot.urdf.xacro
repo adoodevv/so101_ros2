@@ -9,14 +9,15 @@
         <color rgba="0.1 0.1 0.1 1.0"/>
       </material>
     
-      <!-- Dummy root link (KDL requires root link without inertia) -->
-      <link name="world"/>
-    
-      <joint name="world_joint" type="fixed">
-        <parent link="world"/>
-        <child link="base_link"/>
-        <origin xyz="0 0 0" rpy="0 0 0"/>
-      </joint>
+      <!-- Dummy root link for MoveIt / RViz (omitted in Gazebo — base_link is pinned to the sim world) -->
+      <xacro:unless value="${use_gazebo}">
+        <link name="world"/>
+        <joint name="world_joint" type="fixed">
+          <parent link="world"/>
+          <child link="base_link"/>
+          <origin xyz="0 0 0" rpy="0 0 0"/>
+        </joint>
+      </xacro:unless>
     
       <!-- Link base -->
       <link name="base_link">
@@ -78,9 +79,22 @@
         <collision>
           <origin xyz="-0.0309827 -0.000199441 0.0474" rpy="1.5708 -1.35493e-14 1.5708"/>
           <geometry>
-            <mesh filename="file://$(find so101_description)/meshes/so_arm101/waveshare_mounting_plate_so101_v2.stl"/>
+            <xacro:if value="${use_gazebo}">
+              <box size="0.12 0.10 0.04"/>
+            </xacro:if>
+            <xacro:unless value="${use_gazebo}">
+              <mesh filename="file://$(find so101_description)/meshes/so_arm101/waveshare_mounting_plate_so101_v2.stl"/>
+            </xacro:unless>
           </geometry>
         </collision>
+        <xacro:if value="${use_gazebo}">
+          <collision name="base_footprint">
+            <origin xyz="0 0 0.02" rpy="0 0 0"/>
+            <geometry>
+              <box size="0.12 0.10 0.04"/>
+            </geometry>
+          </collision>
+        </xacro:if>
       </link>
     
       <!-- Link shoulder -->

@@ -3,11 +3,23 @@
 <package format="3">
   <name>so101_moveit_config</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>MoveIt configuration for the SO-101 arm</description>
   <maintainer email="adoojonathan412@gmail.com">adoodevv</maintainer>
   <license>BSD-3-Clause</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <exec_depend>so101_description</exec_depend>
+  <exec_depend>moveit_ros_move_group</exec_depend>
+  <exec_depend>moveit_kinematics</exec_depend>
+  <exec_depend>moveit_planners_ompl</exec_depend>
+  <exec_depend>moveit_planners_stomp</exec_depend>
+  <exec_depend>moveit_planners_pilz_industrial_motion_planner</exec_depend>
+  <exec_depend>moveit_ros_visualization</exec_depend>
+  <exec_depend>moveit_configs_utils</exec_depend>
+  <exec_depend>moveit_simple_controller_manager</exec_depend>
+  <exec_depend>rviz2</exec_depend>
+  <exec_depend>rviz_visual_tools</exec_depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

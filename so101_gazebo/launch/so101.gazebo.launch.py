@@ -11,7 +11,7 @@ from launch.actions import (
     IncludeLaunchDescription,
     TimerAction,
 )
-from launch.conditions import IfCondition
+from launch.conditions import IfCondition, UnlessCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
@@ -116,7 +116,7 @@ def generate_launch_description():
         description='y component of initial position, meters')
 
     declare_z_cmd = DeclareLaunchArgument(
-        name='z', default_value='0.05',
+        name='z', default_value='0.0',
         description='z component of initial position, meters')
 
     declare_roll_cmd = DeclareLaunchArgument(
@@ -178,7 +178,16 @@ def generate_launch_description():
         parameters=[{
             'config_file': default_ros_gz_bridge_config_file_path,
         }],
-        output='screen'
+        output='screen',
+        condition=IfCondition(use_camera)
+    )
+
+    start_gazebo_clock_bridge_cmd = Node(
+        package='ros_gz_bridge',
+        executable='parameter_bridge',
+        arguments=['/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock'],
+        output='screen',
+        condition=UnlessCondition(use_camera)
     )
 
     start_gazebo_ros_image_bridge_cmd = Node(
@@ -241,6 +250,7 @@ def generate_launch_description():
     ld.add_action(load_controllers_cmd)
     ld.add_action(start_gazebo_cmd)
     ld.add_action(start_gazebo_ros_bridge_cmd)
+    ld.add_action(start_gazebo_clock_bridge_cmd)
     ld.add_action(start_gazebo_ros_image_bridge_cmd)
     ld.add_action(delayed_spawn_cmd)
 

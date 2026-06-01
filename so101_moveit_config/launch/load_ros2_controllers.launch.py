@@ -28,7 +28,7 @@ def generate_launch_description():
 
     declare_controller_load_delay_cmd = DeclareLaunchArgument(
         name='controller_load_delay',
-        default_value='5.0',
+        default_value='10.0',
         description='Seconds to wait before loading ros2_control controllers')
 
     start_arm_controller_cmd = ExecuteProcess(

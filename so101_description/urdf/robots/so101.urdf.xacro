@@ -3,9 +3,12 @@
     <xacro:arg name="robot_name" default="so101"/>
     <xacro:arg name="prefix" default=""/>
     <xacro:arg name="use_gazebo" default="false"/>
+    <xacro:arg name="use_camera" default="false"/>
 
     <xacro:include filename="$(find so101_description)/urdf/so101_robot.urdf.xacro"/>
     <xacro:so101_robot use_gazebo="$(arg use_gazebo)"/>
+
+    <xacro:include filename="$(find so101_description)/urdf/sensors/intel_rgbd_cam_d435.urdf.xacro"/>
 
     <xacro:include filename="$(find so101_description)/urdf/control/gazebo_sim_ros2_control.urdf.xacro"/>
     <xacro:load_gazebo_sim_ros2_control_plugin

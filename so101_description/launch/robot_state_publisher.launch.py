@@ -127,7 +127,8 @@ def generate_launch_description():
         'xacro', ' ', urdf_model, ' ',
         'robot_name:=', LaunchConfiguration('robot_name'), ' ',
         'prefix:=', LaunchConfiguration('prefix'), ' ',
-        'use_gazebo:=', LaunchConfiguration('use_gazebo')
+        'use_gazebo:=', LaunchConfiguration('use_gazebo'), ' ',
+        'use_camera:=', LaunchConfiguration('use_camera')
     ]), value_type=str)
 
     start_robot_state_publisher_cmd = Node(

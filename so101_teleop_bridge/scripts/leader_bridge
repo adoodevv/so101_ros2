@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Uses python3 from the active environment (activate lerobot conda env first).
+exec python3 -m so101_teleop_bridge.leader_bridge "$@"

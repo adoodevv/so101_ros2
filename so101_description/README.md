@@ -85,6 +85,8 @@ Launch arguments:
 | `use_jsp` | `false` | Non-GUI joint state publisher |
 | `use_sim_time` | `false` | Use simulation clock |
 | `use_gazebo` | `false` | Embed ros2_control + Gazebo plugin in URDF |
+| `use_fake_hardware` | `false` | Use `mock_components/GenericSystem` in the ros2_control block (not with `use_gazebo`) |
+| `prefix` | `""` | Prefix for every link and joint name (see above) |
 | `robot_name` | `so101` | Robot name for controller config path |
 
 When launched from Gazebo, `use_gazebo:=true` is set automatically so the URDF includes the `gz_ros2_control` plugin and box collision geometry for the gripper.

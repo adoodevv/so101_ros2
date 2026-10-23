@@ -91,6 +91,10 @@ POSITION_TOLERANCE = 0.05 if BACKEND == 'real' else 0.01
 # How far a joint may drift when nothing should move: exact in simulation,
 # a few ticks of sensor noise on the physical arm.
 NO_MOTION_TOLERANCE = 0.005 if BACKEND == 'real' else 1e-4
+# The controller reports success when the trajectory's time is up; the
+# physical servos are still closing in on the goal then (one run read
+# elbow_flex 0.097 rad off at that instant). Allow them this long to settle.
+SETTLE_TIMEOUT = 2.0 if BACKEND == 'real' else 0.5
 # so101_hardware holds arm joints this far inside their URDF limits.
 LIMIT_HOLD_MARGIN = 0.0 if BACKEND == 'fake' else 0.03
 
@@ -272,11 +276,20 @@ class TestMoveItSystem(unittest.TestCase):
         self.assertEqual(
             error_code, MoveItErrorCodes.SUCCESS,
             f'MoveIt failed to reach {group}/{state}: error code {error_code}')
-        positions = self.fresh_joint_positions()
+        start = time.monotonic()
+        settle_until = start + SETTLE_TIMEOUT
+        while True:
+            positions = self.fresh_joint_positions()
+            settled = all(abs(positions[joint] - target) <= POSITION_TOLERANCE
+                          for joint, target in targets.items())
+            if settled or time.monotonic() >= settle_until:
+                break
+        waited = time.monotonic() - start
         for joint, target in targets.items():
             self.assertAlmostEqual(
                 positions[joint], target, delta=POSITION_TOLERANCE,
-                msg=f'{group}/{state}: {joint} at {positions[joint]:.4f}, expected {target:.4f}')
+                msg=f'{group}/{state}: {joint} at {positions[joint]:.4f}, expected '
+                    f'{target:.4f} ({waited:.1f} s after the motion finished)')
 
     # --- tests -------------------------------------------------------------
 

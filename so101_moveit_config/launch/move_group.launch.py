@@ -53,6 +53,12 @@ def generate_launch_description():
         default_value='true',
         description='Include Gazebo ros2_control blocks in the robot description')
 
+    declare_use_fake_hardware_cmd = DeclareLaunchArgument(
+        name='use_fake_hardware',
+        default_value='false',
+        description='Use mock_components/GenericSystem in the robot description '
+                    '(mutually exclusive with use_gazebo)')
+
     declare_rviz_config_file_cmd = DeclareLaunchArgument(
         name='rviz_config_file',
         default_value='move_group.rviz',
@@ -67,6 +73,7 @@ def generate_launch_description():
         robot_name_str = LaunchConfiguration('robot_name').perform(context)
         use_camera_str = LaunchConfiguration('use_camera').perform(context)
         use_gazebo_str = LaunchConfiguration('use_gazebo').perform(context)
+        use_fake_hardware_str = LaunchConfiguration('use_fake_hardware').perform(context)
 
         pkg_share_moveit_config = get_package_share_directory(package_name_moveit_config)
         pkg_share_description = get_package_share_directory(package_name_description)
@@ -90,6 +97,7 @@ def generate_launch_description():
                 mappings={
                     'robot_name': robot_name_str,
                     'use_gazebo': use_gazebo_str,
+                    'use_fake_hardware': use_fake_hardware_str,
                     'use_camera': use_camera_str,
                 },
             )
@@ -164,6 +172,7 @@ def generate_launch_description():
     ld.add_action(declare_use_rviz_cmd)
     ld.add_action(declare_use_camera_cmd)
     ld.add_action(declare_use_gazebo_cmd)
+    ld.add_action(declare_use_fake_hardware_cmd)
     ld.add_action(OpaqueFunction(function=configure_setup))
 
     return ld

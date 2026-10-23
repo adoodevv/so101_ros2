@@ -69,6 +69,10 @@ ARGUMENTS = [
     DeclareLaunchArgument('use_gazebo', default_value='false',
                           choices=['true', 'false'],
                           description='Whether to use Gazebo simulation'),
+    DeclareLaunchArgument('use_fake_hardware', default_value='false',
+                          choices=['true', 'false'],
+                          description='Use mock_components/GenericSystem for ros2_control '
+                                      '(mutually exclusive with use_gazebo)'),
 ]
 
 
@@ -128,6 +132,7 @@ def generate_launch_description():
         'robot_name:=', LaunchConfiguration('robot_name'), ' ',
         'prefix:=', LaunchConfiguration('prefix'), ' ',
         'use_gazebo:=', LaunchConfiguration('use_gazebo'), ' ',
+        'use_fake_hardware:=', LaunchConfiguration('use_fake_hardware'), ' ',
         'use_camera:=', LaunchConfiguration('use_camera')
     ]), value_type=str)
 

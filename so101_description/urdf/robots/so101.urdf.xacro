@@ -3,6 +3,8 @@
     <xacro:arg name="robot_name" default="so101"/>
     <xacro:arg name="prefix" default=""/>
     <xacro:arg name="use_gazebo" default="false"/>
+    <!-- mock_components/GenericSystem for headless runs; mutually exclusive with use_gazebo -->
+    <xacro:arg name="use_fake_hardware" default="false"/>
     <xacro:arg name="use_camera" default="false"/>
 
     <xacro:include filename="$(find so101_description)/urdf/so101_robot.urdf.xacro"/>
@@ -18,5 +20,6 @@
     <xacro:include filename="$(find so101_description)/urdf/control/so101_ros2_control.urdf.xacro"/>
     <xacro:so101_ros2_control
         prefix="$(arg prefix)"
-        use_gazebo="$(arg use_gazebo)"/>
+        use_gazebo="$(arg use_gazebo)"
+        use_fake_hardware="$(arg use_fake_hardware)"/>
 </robot>

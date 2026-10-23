@@ -25,6 +25,7 @@ from launch import LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument,
     EmitEvent,
+    GroupAction,
     IncludeLaunchDescription,
     OpaqueFunction,
     RegisterEventHandler,
@@ -134,10 +135,13 @@ def launch_setup(context):
         on_exit=[EmitEvent(event=Shutdown(
             reason='ros2_control_node exited; see its errors above'))],
     ))
-    actions = [robot_state_publisher, ros2_control_node, controller_spawner,
+    # Each include runs in its own GroupAction scope: launch arguments set by
+    # one include (robot_state_publisher's use_rviz:=false and rviz_config_file)
+    # would otherwise leak into the next and override what it is passed.
+    actions = [GroupAction([robot_state_publisher]), ros2_control_node, controller_spawner,
                shutdown_without_hardware]
     if read_only != 'true':
-        actions.append(move_group)
+        actions.append(GroupAction([move_group]))
     return actions
 
 

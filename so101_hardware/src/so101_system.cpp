@@ -34,9 +34,10 @@ constexpr char kVoltage[] = "voltage";
 // accepted with a warning; a larger one is refused.
 constexpr double kActivationLimitTolerance = 0.1;  // rad
 // Commands stop this far inside the URDF limits. MoveIt refuses to plan from a
-// start state even one tick past a limit, and a servo holding a goal at the
-// limit reads a tick or two either side of it (0.0015 rad per tick).
-constexpr double kUrdfLimitMargin = 0.005;  // rad
+// start state even one tick past a limit, and with LeRobot's soft gains a
+// loaded servo settles short of its goal: ~9 ticks (0.014 rad) measured on
+// shoulder_lift in the folded pose. 0.0015 rad per tick.
+constexpr double kUrdfLimitMargin = 0.03;  // rad
 
 std::string param_or(
   const std::unordered_map<std::string, std::string> & params,
@@ -183,10 +184,13 @@ CallbackReturn SO101SystemHardware::on_init(
       const double b = joint.mapping->ticks_to_position(joint.calibration.range_max);
       joint.lower = std::min(a, b);
       joint.upper = std::max(a, b);
+      // A linear joint's calibrated range already is its URDF range (the
+      // gripper: closed and open), so it keeps its full travel.
+      const double margin = mapping == "linear" ? 0.0 : kUrdfLimitMargin;
       const auto limits = info_.limits.find(info.name);
       if (limits != info_.limits.end() && limits->second.has_position_limits) {
-        joint.lower = std::max(joint.lower, limits->second.min_position + kUrdfLimitMargin);
-        joint.upper = std::min(joint.upper, limits->second.max_position - kUrdfLimitMargin);
+        joint.lower = std::max(joint.lower, limits->second.min_position + margin);
+        joint.upper = std::min(joint.upper, limits->second.max_position - margin);
       }
     } catch (const std::exception & e) {
       RCLCPP_ERROR(get_logger(), "Joint '%s': invalid parameter: %s", info.name.c_str(),

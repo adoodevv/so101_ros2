@@ -23,8 +23,9 @@ package in the repository.
 - System tests run against two backends on every `colcon test`: fake hardware,
   and the real plugin on simulated servos. They can also target the physical
   arm (`SO101_TEST_BACKEND=real`).
-- On real hardware the plugin enforces the joint limits (URDF limits, 0.005 rad
-  inside, intersected with the calibrated range) and the launch disables the
+- On real hardware the plugin enforces the joint limits (URDF limits intersected
+  with the calibrated range; arm joints held 0.03 rad inside, since a loaded
+  servo settles ~10 ticks short of its goal) and the launch disables the
   controller manager's `enforce_command_limits`, which stopped every controller
   when the arm rested past a URDF limit. Activation moves a joint up to 0.1 rad
   outside its limits back to the limit, and refuses beyond that.

@@ -26,9 +26,10 @@ differ. It never rewrites your calibration.
 
 `drive_mode: 1` reverses a joint.
 
-**Limits.** The plugin clamps every command to the URDF limits (held 0.005 rad inside,
-so a servo resting at a limit never reads past it and MoveIt can always plan from it)
-intersected with the calibrated range. The real launch turns off the controller manager's
+**Limits.** The plugin clamps every command to the URDF limits intersected with the
+calibrated range. Arm joints are held 0.03 rad inside the URDF limits: with LeRobot's soft
+gains a loaded servo settles up to ~10 ticks short of its goal, and MoveIt refuses to plan
+from a start state even one tick past a limit. The gripper keeps its full travel. The real launch turns off the controller manager's
 `enforce_command_limits`: its limiter stops every controller as soon as a joint *reads*
 past a URDF limit, and the real arm's folded rest pose is a few degrees past
 `shoulder_lift`'s.

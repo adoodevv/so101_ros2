@@ -84,6 +84,8 @@ NO_MOTION_WINDOW = 2.0
 BACKEND = os.environ.get('SO101_TEST_BACKEND', 'fake')
 # MoveIt velocity/acceleration scaling; gentler on the physical arm.
 SPEED_SCALING = 0.3 if BACKEND == 'real' else 1.0
+# so101_hardware holds arm joints this far inside their URDF limits.
+LIMIT_HOLD_MARGIN = 0.0 if BACKEND == 'fake' else 0.03
 
 
 def bringup_launch(name, arguments):
@@ -334,7 +336,7 @@ class TestMoveItSystem(unittest.TestCase):
             # were goal-constrained to their current values, so they may only
             # drift within the planner's goal tolerance.
             self.assertAlmostEqual(
-                after['shoulder_pan'], upper, delta=POSITION_TOLERANCE,
+                after['shoulder_pan'], upper, delta=POSITION_TOLERANCE + LIMIT_HOLD_MARGIN,
                 msg='shoulder_pan was not clamped to its upper limit')
             held = [joint for joint in before if joint != 'shoulder_pan']
             delta = POSITION_TOLERANCE

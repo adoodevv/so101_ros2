@@ -37,6 +37,10 @@ package in the repository.
 
 - `.gitignore` ignored every `src/` directory, so `so101_hardware/src` was
   never committed.
+- Bringup launches opened an empty RViz: `robot_state_publisher.launch.py`'s
+  `use_rviz` and `rviz_config_file` leaked into the `move_group` include (an
+  invalid config path on the real launch; RViz never started on the fake
+  launch). Includes are now scoped with `GroupAction`.
 
 ## [0.2.0] - Unreleased
 

@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-"""
-Launch MoveIt 2 for the SO-101 arm.
-"""
+"""Launch MoveIt 2 for the SO-101 arm."""
 
 import os
 
@@ -38,8 +36,6 @@ def generate_launch_description():
 
     use_sim_time = LaunchConfiguration('use_sim_time')
     use_rviz = LaunchConfiguration('use_rviz')
-    use_camera = LaunchConfiguration('use_camera')
-    use_gazebo = LaunchConfiguration('use_gazebo')
     rviz_config_file = LaunchConfiguration('rviz_config_file')
     rviz_config_package = LaunchConfiguration('rviz_config_package')
 

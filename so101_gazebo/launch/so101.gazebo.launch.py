@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-"""
-Launch Gazebo simulation with the SO-101 arm.
-"""
+"""Launch Gazebo simulation with the SO-101 arm."""
 
 import os
 

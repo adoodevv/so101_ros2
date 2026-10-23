@@ -154,12 +154,27 @@ ros2 topic pub --once /arm_controller/joint_trajectory trajectory_msgs/msg/Joint
 }"
 ```
 
-**Open / close gripper** (range: -0.17 closed … 1.75 open):
+**Open / close gripper** (range: -0.17 closed … 1.75 open). The gripper runs a `joint_trajectory_controller/JointTrajectoryController`, driven through its `follow_joint_trajectory` action:
 
 ```bash
-ros2 topic pub --once /gripper_controller/commands std_msgs/msg/Float64MultiArray "{data: [1.5]}"
-ros2 topic pub --once /gripper_controller/commands std_msgs/msg/Float64MultiArray "{data: [-0.17]}"
+# Open
+ros2 action send_goal /gripper_controller/follow_joint_trajectory control_msgs/action/FollowJointTrajectory "{
+  trajectory: {
+    joint_names: ['gripper'],
+    points: [{positions: [1.5], time_from_start: {sec: 1, nanosec: 0}}]
+  }
+}"
+
+# Close
+ros2 action send_goal /gripper_controller/follow_joint_trajectory control_msgs/action/FollowJointTrajectory "{
+  trajectory: {
+    joint_names: ['gripper'],
+    points: [{positions: [-0.17], time_from_start: {sec: 1, nanosec: 0}}]
+  }
+}"
 ```
+
+A one-shot topic command also works: `ros2 topic pub --once /gripper_controller/joint_trajectory trajectory_msgs/msg/JointTrajectory "{joint_names: ['gripper'], points: [{positions: [1.5], time_from_start: {sec: 1}}]}"`.
 
 ## Robot joints
 

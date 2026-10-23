@@ -5,7 +5,7 @@ Launch MoveIt 2 for the SO-101 arm.
 
 import os
 
-from ament_index_python.packages import get_package_share_directory
+from ament_index_python.packages import get_package_share_directory, PackageNotFoundError
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, EmitEvent, OpaqueFunction, RegisterEventHandler
 from launch.conditions import IfCondition
@@ -15,6 +15,21 @@ from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 from moveit_configs_utils import MoveItConfigsBuilder
+
+
+def optional_move_group_capabilities():
+    """
+    Return move_group capabilities whose plugins are installed.
+
+    ExecuteTaskSolutionCapability comes from MoveIt Task Constructor, which is
+    optional; requesting it when MTC is absent makes move_group log a plugin
+    loading error on every start.
+    """
+    try:
+        get_package_share_directory('moveit_task_constructor_capabilities')
+    except PackageNotFoundError:
+        return {}
+    return {'capabilities': 'move_group/ExecuteTaskSolutionCapability'}
 
 
 def generate_launch_description():
@@ -118,9 +133,7 @@ def generate_launch_description():
             .to_moveit_configs()
         )
 
-        move_group_capabilities = {
-            'capabilities': 'move_group/ExecuteTaskSolutionCapability'
-        }
+        move_group_capabilities = optional_move_group_capabilities()
 
         start_move_group_node_cmd = Node(
             package='moveit_ros_move_group',

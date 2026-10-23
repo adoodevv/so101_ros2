@@ -10,7 +10,9 @@ RViz) and checks, through the public ROS interfaces only, that:
    `home` then `ready`;
 3. the gripper goes to `open`, `closed`, then `open` through MoveIt;
 4. an arm goal outside the joint limits never moves a joint past its limit
-   (it is either rejected with no motion, or clamped to the limit by MoveIt).
+   (it is either rejected with no motion, or clamped to the limit by MoveIt);
+5. a trajectory sent straight to arm_controller, bypassing MoveIt, is clamped
+   to the URDF limits by the controller manager (enforce_command_limits).
 
 Target joint values come from the installed SRDF and limits from
 /robot_description, so the tests follow the robot config rather than
@@ -24,6 +26,8 @@ import unittest
 import xml.etree.ElementTree as ET
 
 from ament_index_python.packages import get_package_share_directory
+from builtin_interfaces.msg import Duration
+from control_msgs.action import FollowJointTrajectory
 from controller_manager_msgs.srv import ListControllers
 from launch import LaunchDescription
 from launch.actions import IncludeLaunchDescription
@@ -38,6 +42,7 @@ from rclpy.action import ActionClient
 from rclpy.qos import DurabilityPolicy, QoSProfile
 from sensor_msgs.msg import JointState
 from std_msgs.msg import String
+from trajectory_msgs.msg import JointTrajectoryPoint
 
 
 ROBOT_NAME = 'so101'
@@ -110,10 +115,13 @@ class TestFakeMoveIt(unittest.TestCase):
         cls.list_controllers = cls.node.create_client(
             ListControllers, '/controller_manager/list_controllers')
         cls.move_group = ActionClient(cls.node, MoveGroup, '/move_action')
+        cls.arm_controller = ActionClient(
+            cls.node, FollowJointTrajectory, '/arm_controller/follow_joint_trajectory')
 
     @classmethod
     def tearDownClass(cls):
         cls.move_group.destroy()
+        cls.arm_controller.destroy()
         cls.node.destroy_node()
         rclpy.shutdown()
 
@@ -293,3 +301,36 @@ class TestFakeMoveIt(unittest.TestCase):
             self.assertAlmostEqual(
                 after[joint], before[joint], delta=delta,
                 msg=f'{joint} moved from {before[joint]:.4f} to {after[joint]:.4f}')
+
+    def test_05_direct_controller_command_clamped_to_limits(self):
+        """A trajectory sent straight to arm_controller cannot drive a joint past its limit."""
+        self.start_deadline(REJECTION_TEST_TIMEOUT)
+        self.spin_until(lambda: self.joint_limits is not None, '/robot_description')
+        self.assertTrue(
+            self.arm_controller.wait_for_server(timeout_sec=self.remaining()),
+            'arm_controller follow_joint_trajectory action not available')
+
+        before = self.fresh_joint_positions()
+        arm_joints = list(self.group_states[('arm', 'home')])
+        _, upper = self.joint_limits['shoulder_pan']
+        targets = {joint: before[joint] for joint in arm_joints}
+        targets['shoulder_pan'] = upper + OUT_OF_LIMITS_MARGIN
+
+        goal = FollowJointTrajectory.Goal()
+        goal.trajectory.joint_names = arm_joints
+        goal.trajectory.points = [JointTrajectoryPoint(
+            positions=[targets[joint] for joint in arm_joints],
+            time_from_start=Duration(sec=1))]
+        goal_handle = self.wait_future(
+            self.arm_controller.send_goal_async(goal), 'arm_controller goal acceptance')
+        if goal_handle.accepted:
+            self.wait_future(goal_handle.get_result_async(), 'arm_controller goal result')
+
+        settle_until = time.monotonic() + NO_MOTION_WINDOW
+        self.spin_until(lambda: time.monotonic() >= settle_until, 'settle window')
+        after = self.fresh_joint_positions()
+        for joint, (lower, upper_limit) in self.joint_limits.items():
+            self.assertGreaterEqual(
+                after[joint], lower - POSITION_TOLERANCE, f'{joint} below its lower limit')
+            self.assertLessEqual(
+                after[joint], upper_limit + POSITION_TOLERANCE, f'{joint} above its upper limit')

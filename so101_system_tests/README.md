@@ -14,6 +14,7 @@ no RViz) and drive it only through its public ROS interfaces.
 | `test_02_arm_home_then_ready` | `arm` plans and executes through MoveIt (`/move_action`) to SRDF states `home`, then `ready`; final `/joint_states` within 0.01 rad of the SRDF values | 60 s |
 | `test_03_gripper_open_closed_open` | `gripper` goes `open` → `closed` → `open` through MoveIt, each within 0.01 rad | 60 s |
 | `test_04_out_of_limits_goal_never_exceeds_limits` | An `arm` goal 0.5 rad past the `shoulder_pan` URDF limit never drives any joint past its limit: either it is rejected with no motion, or MoveIt clamps it to the limit (MoveIt 2 `JointConstraint` behaviour) and the other joints hold | 30 s |
+| `test_05_direct_controller_command_clamped_to_limits` | A trajectory sent straight to `/arm_controller/follow_joint_trajectory` with `shoulder_pan` 0.5 rad past its limit leaves every joint within its URDF limits (controller manager `enforce_command_limits`) | 30 s |
 
 Target values are read from the installed SRDF and joint limits from
 `/robot_description`, so the tests follow the robot configuration. Every wait
@@ -44,11 +45,14 @@ Full launch and test output is written to
   time parameterization. The tests allow `move_group` to re-plan (20 attempts)
   rather than fail on this.
 - **Joint goals beyond the limits are clamped, not rejected,** by MoveIt
-  (`Assuming maximum bounds instead`). Commands sent directly to
-  `arm_controller` are not limited at all on fake hardware, because the
-  controller manager runs with `enforce_command_limits` off.
+  (`Assuming maximum bounds instead`). Independently, the controller manager
+  runs with `enforce_command_limits: true`, so commands from any source are
+  clamped to the URDF limits before reaching the hardware. The controller still
+  reports `SUCCEEDED` for such a trajectory, so test 5 checks positions, not
+  the action result.
 
 ## Dependencies
 
 `so101_bringup`, `so101_moveit_config`, `launch_testing_ament_cmake`, `rclpy`,
-`moveit_msgs`, `controller_manager_msgs`, `sensor_msgs`, `std_msgs`.
+`moveit_msgs`, `control_msgs`, `controller_manager_msgs`, `sensor_msgs`,
+`std_msgs`, `trajectory_msgs`, `builtin_interfaces`.

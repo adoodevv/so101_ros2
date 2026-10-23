@@ -4,6 +4,10 @@ controller_manager:
   ros__parameters:
     update_rate: 100 # update_rate specifies how often (in Hz) the controllers should be updated.
 
+    # Clamp every command to the URDF joint limits before it reaches the hardware,
+    # whatever sent it (MoveIt, a controller topic/action, teleop).
+    enforce_command_limits: true
+
     # The JointTrajectoryController allows you to send joint trajectory commands to a group
     # of joints on a robot. These commands specify the desired positions for each joint.
     arm_controller:

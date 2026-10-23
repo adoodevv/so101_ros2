@@ -94,6 +94,11 @@
     <disable_collisions link1="upper_arm_link" link2="wrist_link" reason="Never"/>
     <disable_collisions link1="upper_arm_link" link2="gripper_link" reason="Never"/>
     <disable_collisions link1="lower_arm_link" link2="gripper_link" reason="Never"/>
+    <!-- Their relative pose depends only on wrist_roll and gripper; sampled over both
+         full ranges with the mesh geometry, they never touch. The Gazebo collision box
+         for the jaw does touch wrist_link at the closed limit, which made `closed`
+         an invalid goal in Gazebo. -->
+    <disable_collisions link1="wrist_link" link2="moving_jaw_so101_v1_link" reason="Never"/>
 
     <!-- Camera mount (optional, when use_camera:=true) -->
     <disable_collisions link1="base_link" link2="torso_link" reason="Adjacent"/>

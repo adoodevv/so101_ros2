@@ -42,9 +42,9 @@ ROS 2 stack for the [SO-101](https://github.com/TheRobotStudio/SO-ARM100) robot 
 - [x] Fake hardware (`mock_components`) + MoveIt bringup, headless, no Gazebo
 - [x] Mountable description (`parent` / `xyz` / `rpy`, `prefix` on every link and joint)
 - [x] Automated system tests on fake hardware (controllers, named states, gripper, joint limits)
-- [x] Joint limits enforced by the controller manager for every command source
+- [x] Joint limits enforced for every command source (controller manager in simulation, the hardware plugin on the real arm)
 - [x] Hardware interface for the real arm (ros2_control plugin, tested end to end against simulated servos)
-- [ ] Hardware interface validated on the physical arm ([first-run procedure](so101_hardware/README.md#first-run-on-your-arm))
+- [ ] Hardware interface validated on the physical arm ([first-run procedure](so101_hardware/README.md#first-run-on-your-arm)): MoveIt goals work at 0.1 and 0.5 scaling; system tests on the arm pending
 - [ ] Prefix-aware MoveIt / controller configuration (currently assumes an empty prefix)
 
 ## Prerequisites

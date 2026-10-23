@@ -36,6 +36,13 @@ if(BUILD_TESTING)
     TIMEOUT 300
     ENV SO101_TEST_BACKEND=servo_sim ROS_DOMAIN_ID=74 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
   )
+  # Leader-arm teleoperation, both arms on simulated servos.
+  add_launch_test(
+    test/test_teleop.launch.py
+    TARGET test_teleop
+    TIMEOUT 180
+    ENV ROS_DOMAIN_ID=75 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
+  )
 endif()
 
 ament_package()

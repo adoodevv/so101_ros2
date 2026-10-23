@@ -22,6 +22,14 @@ controller_manager:
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
 
+    # Streaming position commands (std_msgs/Float64MultiArray on <name>/commands),
+    # used for leader-arm teleoperation instead of the trajectory controllers.
+    arm_forward_controller:
+      type: position_controllers/JointGroupPositionController
+
+    gripper_forward_controller:
+      type: position_controllers/JointGroupPositionController
+
 # Define the parameters for each controller
 arm_controller:
   ros__parameters:
@@ -64,3 +72,17 @@ gripper_controller:
       - position
     allow_integration_in_goal_trajectories: true
     allow_nonzero_velocity_at_trajectory_end: true
+
+arm_forward_controller:
+  ros__parameters:
+    joints:
+      - ${prefix}shoulder_pan
+      - ${prefix}shoulder_lift
+      - ${prefix}elbow_flex
+      - ${prefix}wrist_flex
+      - ${prefix}wrist_roll
+
+gripper_forward_controller:
+  ros__parameters:
+    joints:
+      - ${prefix}gripper

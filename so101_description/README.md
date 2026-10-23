@@ -41,13 +41,12 @@ so101_description/
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `use_gazebo` | — | Gazebo collision geometry; with `parent=world`, no `world` link is created |
+| `use_gazebo` | — | Use simplified Gazebo collision geometry |
 | `prefix` | `""` | Prepended to every link, joint, transmission, actuator and material name |
 | `parent` | `world` | Link that `${prefix}base_link` is attached to |
 | `xyz` / `rpy` | `0 0 0` | Pose of `${prefix}base_link` in `parent` |
 
-- `parent == world` and Gazebo off: creates the `world` link plus `${prefix}world_joint` (the default, identical to earlier releases).
-- `parent == world` and Gazebo on: no joint; `base_link` is pinned to the Gazebo world.
+- `parent == world` (default): creates the `world` link plus a fixed `${prefix}world_joint`. In Gazebo this joint pins the base to the ground at the spawn pose.
 - Any other `parent`: creates `${prefix}mount_joint` from `parent` to `${prefix}base_link`; the caller provides the parent link and no `world` link is created.
 
 To mount the arm on another robot, include the macro from your own xacro:

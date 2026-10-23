@@ -6,11 +6,10 @@
     prefix:   prepended to every link, joint, transmission, actuator and
               material name (default "" keeps the upstream names).
     parent:   link the arm's ${prefix}base_link is attached to. When it is
-              "world" (default) and use_gazebo is false, a `world` link is
-              created here as the tree root. When it is anything else, the
-              caller must provide that link (e.g. a mount on another robot).
-              With use_gazebo and parent == "world", no joint is created and
-              base_link is pinned to the Gazebo world (unchanged behaviour).
+              "world" (default), a `world` link is created here as the tree
+              root; in Gazebo the fixed joint to `world` pins the base at its
+              spawn pose. When it is anything else, the caller must provide
+              that link (e.g. a mount on another robot).
     xyz, rpy: pose of ${prefix}base_link in the parent frame.
   -->
   <xacro:macro name="so101_robot"
@@ -24,15 +23,14 @@
       </material>
 
       <xacro:if value="${parent == 'world'}">
-        <!-- Dummy root link for MoveIt / RViz (omitted in Gazebo — base_link is pinned to the sim world) -->
-        <xacro:unless value="${use_gazebo}">
-          <link name="world"/>
-          <joint name="${prefix}world_joint" type="fixed">
-            <parent link="world"/>
-            <child link="${prefix}base_link"/>
-            <origin xyz="${xyz}" rpy="${rpy}"/>
-          </joint>
-        </xacro:unless>
+        <!-- Root link for MoveIt / RViz. In Gazebo, a fixed joint to `world` pins the
+             base to the ground; without it the arm's overhang tips the light base over. -->
+        <link name="world"/>
+        <joint name="${prefix}world_joint" type="fixed">
+          <parent link="world"/>
+          <child link="${prefix}base_link"/>
+          <origin xyz="${xyz}" rpy="${rpy}"/>
+        </joint>
       </xacro:if>
       <xacro:unless value="${parent == 'world'}">
         <!-- Mount onto a caller-provided parent link -->

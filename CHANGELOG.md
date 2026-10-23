@@ -69,6 +69,10 @@ package in the repository.
   could not be planned, because the Gazebo jaw collision box touches
   `wrist_link` below ~0.25 rad. The pair never touches with the real meshes
   over the full `wrist_roll` x `gripper` range and is now disabled in the SRDF.
+- The arm tipped over in Gazebo: the base was not attached to the world, and at
+  `home` the arm's overhang (~0.39 m) pulls the 0.147 kg base forward (~39 deg
+  pitch). The `world` link and fixed `world_joint` are now also generated with
+  `use_gazebo`, which pins the base at its spawn pose.
 - Pre-existing lint failures (lint_cmake, flake8, pep257); `colcon test` passes
   for every package.
 

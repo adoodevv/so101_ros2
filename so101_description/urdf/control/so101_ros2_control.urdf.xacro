@@ -5,14 +5,21 @@
       Hardware backend (at most one may be true):
         use_gazebo        -> gz_ros2_control/GazeboSimSystem (Gazebo Harmonic)
         use_fake_hardware -> mock_components/GenericSystem (headless, no physics)
+        use_real_hardware -> so101_hardware/SO101SystemHardware (Feetech STS3215
+                             servos on `port`, LeRobot `calibration_file`)
       initial_positions_file: YAML with an `initial_positions` map keyed by
         unprefixed joint name. Only read when use_fake_hardware is true; empty
         means so101_moveit_config/config/so101/initial_positions.yaml.
     -->
     <xacro:macro name="so101_ros2_control"
-                 params="prefix use_gazebo use_fake_hardware:=false initial_positions_file:=''">
-        <xacro:if value="${use_gazebo and use_fake_hardware}">
-            ${xacro.fatal('so101_ros2_control: use_gazebo and use_fake_hardware cannot both be true')}
+                 params="prefix use_gazebo use_fake_hardware:=false initial_positions_file:=''
+                         use_real_hardware:=false port:=/dev/ttyACM0 calibration_file:=''
+                         baud_rate:=1000000 read_only:=false">
+        <xacro:if value="${int(use_gazebo) + int(use_fake_hardware) + int(use_real_hardware) > 1}">
+            ${xacro.fatal('so101_ros2_control: at most one of use_gazebo, use_fake_hardware and use_real_hardware can be true')}
+        </xacro:if>
+        <xacro:if value="${use_real_hardware and calibration_file == ''}">
+            ${xacro.fatal('so101_ros2_control: use_real_hardware needs calibration_file (the LeRobot calibration JSON)')}
         </xacro:if>
 
         <xacro:if value="${use_fake_hardware}">
@@ -29,6 +36,19 @@
             </xacro:if>
         </xacro:macro>
 
+        <!-- Real hardware only: calibration key of the joint's servo, and the extra
+             feedback the servos provide. load is a fraction of max torque (-1..1),
+             not a calibrated effort. -->
+        <xacro:macro name="real_joint" params="motor">
+            <xacro:if value="${use_real_hardware}">
+                <state_interface name="velocity"/>
+                <state_interface name="load"/>
+                <state_interface name="temperature"/>
+                <state_interface name="voltage"/>
+                <param name="motor">${motor}</param>
+            </xacro:if>
+        </xacro:macro>
+
         <ros2_control name="${prefix}RobotSystem" type="system">
             <hardware>
                 <xacro:if value="${use_gazebo}">
@@ -37,6 +57,13 @@
                 <xacro:if value="${use_fake_hardware}">
                     <plugin>mock_components/GenericSystem</plugin>
                     <param name="calculate_dynamics">false</param>
+                </xacro:if>
+                <xacro:if value="${use_real_hardware}">
+                    <plugin>so101_hardware/SO101SystemHardware</plugin>
+                    <param name="port">${port}</param>
+                    <param name="baud_rate">${baud_rate}</param>
+                    <param name="calibration_file">${calibration_file}</param>
+                    <param name="read_only">${read_only}</param>
                 </xacro:if>
             </hardware>
 
@@ -48,6 +75,7 @@
                 <state_interface name="position">
                     <xacro:initial_value joint="shoulder_pan"/>
                 </state_interface>
+                <xacro:real_joint motor="shoulder_pan"/>
             </joint>
 
             <joint name="${prefix}shoulder_lift">
@@ -58,6 +86,7 @@
                 <state_interface name="position">
                     <xacro:initial_value joint="shoulder_lift"/>
                 </state_interface>
+                <xacro:real_joint motor="shoulder_lift"/>
             </joint>
 
             <joint name="${prefix}elbow_flex">
@@ -68,6 +97,7 @@
                 <state_interface name="position">
                     <xacro:initial_value joint="elbow_flex"/>
                 </state_interface>
+                <xacro:real_joint motor="elbow_flex"/>
             </joint>
 
             <joint name="${prefix}wrist_flex">
@@ -78,6 +108,7 @@
                 <state_interface name="position">
                     <xacro:initial_value joint="wrist_flex"/>
                 </state_interface>
+                <xacro:real_joint motor="wrist_flex"/>
             </joint>
 
             <joint name="${prefix}wrist_roll">
@@ -88,6 +119,7 @@
                 <state_interface name="position">
                     <xacro:initial_value joint="wrist_roll"/>
                 </state_interface>
+                <xacro:real_joint motor="wrist_roll"/>
             </joint>
 
             <joint name="${prefix}gripper">
@@ -103,10 +135,22 @@
                      elsewhere so joint_state_broadcaster keeps publishing them in
                      Gazebo. In Gazebo the effort is the simulated joint effort:
                      it is not contact or grip-force sensing. -->
-                <xacro:unless value="${use_fake_hardware}">
+                <xacro:unless value="${use_fake_hardware or use_real_hardware}">
                     <state_interface name="velocity"/>
                     <state_interface name="effort"/>
                 </xacro:unless>
+                <xacro:real_joint motor="gripper"/>
+                <xacro:if value="${use_real_hardware}">
+                    <!-- Servo range [range_min, range_max] maps linearly onto the
+                         command limits above (closed .. open). -->
+                    <param name="mapping">linear</param>
+                    <!-- LeRobot's gripper protection: 50 % torque and current,
+                         25 % torque when overloaded, so a blocked grip cannot
+                         burn the servo. -->
+                    <param name="max_torque_limit">500</param>
+                    <param name="protection_current">250</param>
+                    <param name="overload_torque">25</param>
+                </xacro:if>
             </joint>
 
         </ros2_control>

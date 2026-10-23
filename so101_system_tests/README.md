@@ -1,12 +1,18 @@
 # so101_system_tests
 
-End-to-end system tests for the SO-101 stack. They launch
-`so101_bringup/so101_fake_moveit.launch.py` headless (fake hardware, no Gazebo,
-no RViz) and drive it only through its public ROS interfaces.
+End-to-end system tests for the SO-101 stack. They run headless (no Gazebo, no RViz)
+and drive the stack only through its public ROS interfaces. The same suite runs against
+several backends, selected with `SO101_TEST_BACKEND`:
+
+| Backend | Launches | Runs on `colcon test` |
+|---------|----------|-----------------------|
+| `fake` | `so101_fake_moveit.launch.py` (mock_components) | yes (`test_moveit_system_fake`) |
+| `servo_sim` | `so101_real_moveit.launch.py`: the real `so101_hardware` plugin talking to `so101_servo_sim` (simulated STS3215 servos) | yes (`test_moveit_system_servo_sim`) |
+| `real` | `so101_real_moveit.launch.py` on the physical arm (`SO101_PORT`, `SO101_CALIBRATION_FILE`), at 30 % speed | no; run by hand, see [so101_hardware](../so101_hardware/README.md#first-run-on-your-arm) |
 
 ## Tests
 
-`test/test_fake_moveit.launch.py` (`launch_testing`), run in order against one launched stack:
+`test/test_moveit_system.launch.py` (`launch_testing`), run in order against one launched stack:
 
 | Test | Checks | Budget |
 |------|--------|--------|
@@ -19,7 +25,7 @@ no RViz) and drive it only through its public ROS interfaces.
 Target values are read from the installed SRDF and joint limits from
 `/robot_description`, so the tests follow the robot configuration. Every wait
 inside a test is bounded by that test's budget; CTest bounds the whole run at
-300 s. The test runs on `ROS_DOMAIN_ID=73` with
+300 s. Each backend runs on its own `ROS_DOMAIN_ID` (73 fake, 74 servo_sim) with
 `ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST`, isolated from other ROS 2 graphs on the machine.
 
 ## Run
@@ -33,7 +39,7 @@ colcon test-result --verbose --test-result-base build/so101_system_tests
 ```
 
 Full launch and test output is written to
-`build/so101_system_tests/launch_test/test_test_fake_moveit.launch.py.txt`.
+`build/so101_system_tests/launch_test/test_moveit_system_<backend>.txt`.
 
 ## Known behaviour
 

@@ -5,6 +5,12 @@
     <xacro:arg name="use_gazebo" default="false"/>
     <!-- mock_components/GenericSystem for headless runs; mutually exclusive with use_gazebo -->
     <xacro:arg name="use_fake_hardware" default="false"/>
+    <!-- Real SO-101 follower (so101_hardware); mutually exclusive with the above -->
+    <xacro:arg name="use_real_hardware" default="false"/>
+    <xacro:arg name="port" default="/dev/ttyACM0"/>
+    <xacro:arg name="calibration_file" default=""/>
+    <xacro:arg name="baud_rate" default="1000000"/>
+    <xacro:arg name="read_only" default="false"/>
     <xacro:arg name="use_camera" default="false"/>
     <!-- Controller YAML for gz_ros2_control; empty uses so101_moveit_config's -->
     <xacro:arg name="controllers_file" default=""/>
@@ -39,5 +45,10 @@
     <xacro:so101_ros2_control
         prefix="$(arg prefix)"
         use_gazebo="$(arg use_gazebo)"
-        use_fake_hardware="$(arg use_fake_hardware)"/>
+        use_fake_hardware="$(arg use_fake_hardware)"
+        use_real_hardware="$(arg use_real_hardware)"
+        port="$(arg port)"
+        calibration_file="$(arg calibration_file)"
+        baud_rate="$(arg baud_rate)"
+        read_only="$(arg read_only)"/>
 </robot>

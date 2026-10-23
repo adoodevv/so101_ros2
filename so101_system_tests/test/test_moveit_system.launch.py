@@ -1,9 +1,20 @@
 #!/usr/bin/env python3
 """
-End-to-end system tests for the SO-101 stack on fake hardware.
+End-to-end system tests for the SO-101 stack.
 
-Launches so101_bringup/so101_fake_moveit.launch.py headless (no Gazebo, no
-RViz) and checks, through the public ROS interfaces only, that:
+The backend is chosen with the SO101_TEST_BACKEND environment variable:
+
+- `fake` (default): so101_bringup/so101_fake_moveit.launch.py, i.e.
+  mock_components/GenericSystem.
+- `servo_sim`: so101_bringup/so101_real_moveit.launch.py, i.e. the real
+  so101_hardware plugin, talking the Feetech protocol to so101_servo_sim
+  (six simulated STS3215 servos on a pseudo-terminal).
+- `real`: so101_real_moveit.launch.py on the physical follower arm; set
+  SO101_PORT and SO101_CALIBRATION_FILE. The arm moves through its named
+  poses and to a joint limit: clear its workspace first.
+
+Everything runs headless (no Gazebo, no RViz). Through the public ROS
+interfaces only, the tests check that:
 
 1. joint_state_broadcaster, arm_controller and gripper_controller are active;
 2. the arm plans and executes through MoveIt to the SRDF named states
@@ -21,16 +32,18 @@ and run in order.
 """
 
 import os
+import tempfile
 import time
 import unittest
 import xml.etree.ElementTree as ET
 
-from ament_index_python.packages import get_package_share_directory
+from ament_index_python.packages import get_package_prefix, get_package_share_directory
 from builtin_interfaces.msg import Duration
 from control_msgs.action import FollowJointTrajectory
 from controller_manager_msgs.srv import ListControllers
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription
+from launch.actions import ExecuteProcess, IncludeLaunchDescription, RegisterEventHandler
+from launch.event_handlers import OnProcessIO
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 import launch_testing
 import launch_testing.actions
@@ -54,8 +67,8 @@ STARTUP_TIMEOUT = 90.0
 MOTION_TEST_TIMEOUT = 60.0
 REJECTION_TEST_TIMEOUT = 30.0
 
-# Fake hardware tracks commands exactly; this allows for controller goal
-# tolerances and floating point noise.
+# Allows for controller goal tolerances, servo resolution (~0.0015 rad per
+# tick) and floating point noise.
 POSITION_TOLERANCE = 0.01
 # Overshoot past the URDF upper limit used for the out-of-limits goal.
 OUT_OF_LIMITS_MARGIN = 0.5
@@ -67,18 +80,53 @@ PLANNING_ATTEMPTS = 3
 NO_MOTION_WINDOW = 2.0
 
 
+BACKEND = os.environ.get('SO101_TEST_BACKEND', 'fake')
+# MoveIt velocity/acceleration scaling; gentler on the physical arm.
+SPEED_SCALING = 0.3 if BACKEND == 'real' else 1.0
+
+
+def bringup_launch(name, arguments):
+    """Include an so101_bringup launch file with the given arguments."""
+    path = os.path.join(get_package_share_directory('so101_bringup'), 'launch', name)
+    return IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(path), launch_arguments=arguments.items())
+
+
 @pytest.mark.launch_test
 def generate_test_description():
-    """Launch the fake-hardware MoveIt stack without RViz."""
-    fake_moveit_launch = os.path.join(
-        get_package_share_directory('so101_bringup'), 'launch', 'so101_fake_moveit.launch.py')
-    return LaunchDescription([
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(fake_moveit_launch),
-            launch_arguments={'use_rviz': 'false'}.items(),
-        ),
-        launch_testing.actions.ReadyToTest(),
-    ])
+    """Launch the selected backend with MoveIt, headless."""
+    if BACKEND == 'fake':
+        actions = [bringup_launch('so101_fake_moveit.launch.py', {'use_rviz': 'false'})]
+    elif BACKEND == 'servo_sim':
+        calibration = os.path.join(
+            get_package_share_directory('so101_hardware'), 'config',
+            'example_follower_calibration.json')
+        port = os.path.join(tempfile.gettempdir(), f'so101_sim_port_{os.getpid()}')
+        sim = ExecuteProcess(
+            cmd=[os.path.join(get_package_prefix('so101_hardware'), 'lib', 'so101_hardware',
+                              'so101_servo_sim'),
+                 '--calibration', calibration, '--link', port],
+            output='screen')
+        robot = bringup_launch('so101_real_moveit.launch.py', {
+            'port': port, 'calibration_file': calibration, 'use_rviz': 'false'})
+        started = []
+
+        def start_robot_when_sim_is_up(event):
+            if not started and b'servos on' in event.text:
+                started.append(True)
+                return [robot]
+            return None
+
+        actions = [sim, RegisterEventHandler(OnProcessIO(
+            target_action=sim, on_stdout=start_robot_when_sim_is_up))]
+    elif BACKEND == 'real':
+        actions = [bringup_launch('so101_real_moveit.launch.py', {
+            'port': os.environ.get('SO101_PORT', '/dev/ttyACM0'),
+            'calibration_file': os.environ.get('SO101_CALIBRATION_FILE', ''),
+            'use_rviz': 'false'})]
+    else:
+        raise ValueError(f'Unknown SO101_TEST_BACKEND {BACKEND!r}')
+    return LaunchDescription(actions + [launch_testing.actions.ReadyToTest()])
 
 
 def load_srdf_group_states():
@@ -93,7 +141,7 @@ def load_srdf_group_states():
     return states
 
 
-class TestFakeMoveIt(unittest.TestCase):
+class TestMoveItSystem(unittest.TestCase):
     """Drive the launched stack through its ROS interfaces."""
 
     @classmethod
@@ -180,8 +228,8 @@ class TestFakeMoveIt(unittest.TestCase):
         request.group_name = group
         request.num_planning_attempts = 5
         request.allowed_planning_time = 5.0
-        request.max_velocity_scaling_factor = 1.0
-        request.max_acceleration_scaling_factor = 1.0
+        request.max_velocity_scaling_factor = SPEED_SCALING
+        request.max_acceleration_scaling_factor = SPEED_SCALING
         request.start_state.is_diff = True
         request.goal_constraints = [Constraints(joint_constraints=[
             JointConstraint(

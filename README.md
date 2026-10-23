@@ -26,7 +26,8 @@ ROS 2 stack for the [SO-101](https://github.com/TheRobotStudio/SO-ARM100) robot 
 | [so101_description](so101_description/) | URDF/xacro, meshes, RViz config |
 | [so101_moveit_config](so101_moveit_config/) | MoveIt 2 config, SRDF, planning pipelines, ros2_control controllers |
 | [so101_gazebo](so101_gazebo/) | Gazebo Harmonic simulation and worlds |
-| [so101_bringup](so101_bringup/) | Launch files for Gazebo + MoveIt and fake hardware + MoveIt |
+| [so101_hardware](so101_hardware/) | ros2_control plugin for the real follower arm (Feetech STS3215, LeRobot calibration), check tool, servo simulator |
+| [so101_bringup](so101_bringup/) | Launch files for Gazebo, fake hardware and the real arm, each with MoveIt |
 | [so101_system_tests](so101_system_tests/) | Headless end-to-end tests on fake hardware (`launch_testing`) |
 | [so101_teleop_bridge](so101_teleop_bridge/) | Publishes a physical SO-101 leader arm's joints on `/joint_states` |
 
@@ -42,7 +43,8 @@ ROS 2 stack for the [SO-101](https://github.com/TheRobotStudio/SO-ARM100) robot 
 - [x] Mountable description (`parent` / `xyz` / `rpy`, `prefix` on every link and joint)
 - [x] Automated system tests on fake hardware (controllers, named states, gripper, joint limits)
 - [x] Joint limits enforced by the controller manager for every command source
-- [ ] Hardware interface (real robot)
+- [x] Hardware interface for the real arm (ros2_control plugin, tested end to end against simulated servos)
+- [ ] Hardware interface validated on the physical arm ([first-run procedure](so101_hardware/README.md#first-run-on-your-arm))
 - [ ] Prefix-aware MoveIt / controller configuration (currently assumes an empty prefix)
 
 ## Prerequisites
@@ -189,9 +191,25 @@ colcon test-result --verbose --test-result-base build/so101_system_tests
 
 To generate the fake-hardware URDF yourself, pass `use_fake_hardware:=true` to `robots/so101.urdf.xacro` (it cannot be combined with `use_gazebo:=true`). See [so101_description](so101_description/README.md#mounting-and-name-prefixes) for mounting the arm on another robot with `parent`, `xyz`, `rpy` and `prefix`.
 
+### 5. Real arm
+
+Drives the SO-101 follower through ros2_control with the same controllers and MoveIt config. It uses your LeRobot calibration (`follower_id`, default `my_follower`) and serial `port` (default `/dev/ttyACM0`, the first arm plugged in).
+
+```bash
+# 1. read-only check, nothing moves
+ros2 run so101_hardware so101_hardware_check --port /dev/ttyACM0 \
+  --calibration ~/.cache/huggingface/lerobot/calibration/robots/so_follower/my_follower.json
+# 2. torque off: move the arm by hand and check RViz follows
+ros2 launch so101_bringup so101_real_moveit.launch.py read_only:=true
+# 3. powered, with MoveIt and RViz
+ros2 launch so101_bringup so101_real_moveit.launch.py
+```
+
+Follow the full [first-run procedure](so101_hardware/README.md#first-run-on-your-arm) the first time.
+
 ## Control the arm manually
 
-After Gazebo or the fake-hardware stack is running and controllers are active, you can send trajectories directly (without MoveIt):
+After Gazebo, the fake-hardware stack or the real arm is running and controllers are active, you can send trajectories directly (without MoveIt):
 
 **Move the arm:**
 

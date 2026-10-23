@@ -65,6 +65,15 @@ ARGUMENTS = [
                           choices=['true', 'false'],
                           description='Use mock_components/GenericSystem for ros2_control '
                                       '(mutually exclusive with use_gazebo)'),
+    DeclareLaunchArgument('use_real_hardware', default_value='false',
+                          choices=['true', 'false'],
+                          description='Use the real SO-101 follower (so101_hardware)'),
+    DeclareLaunchArgument('port', default_value='/dev/ttyACM0',
+                          description='Serial port of the follower arm (real hardware)'),
+    DeclareLaunchArgument('calibration_file', default_value='',
+                          description='LeRobot calibration JSON of the follower (real hardware)'),
+    DeclareLaunchArgument('read_only', default_value='false', choices=['true', 'false'],
+                          description='Real hardware: feedback only, never enable torque'),
 ]
 
 
@@ -125,6 +134,10 @@ def generate_launch_description():
         'prefix:=', LaunchConfiguration('prefix'), ' ',
         'use_gazebo:=', LaunchConfiguration('use_gazebo'), ' ',
         'use_fake_hardware:=', LaunchConfiguration('use_fake_hardware'), ' ',
+        'use_real_hardware:=', LaunchConfiguration('use_real_hardware'), ' ',
+        'port:=', LaunchConfiguration('port'), ' ',
+        'calibration_file:=', LaunchConfiguration('calibration_file'), ' ',
+        'read_only:=', LaunchConfiguration('read_only'), ' ',
         'controllers_file:=', LaunchConfiguration('controllers_file', default=''), ' ',
         'use_camera:=', LaunchConfiguration('use_camera')
     ]), value_type=str)

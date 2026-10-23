@@ -1,0 +1,194 @@
+#!/usr/bin/env python3
+# Copyright 2026 Jonathan Darko Adoo
+# SPDX-License-Identifier: BSD-3-Clause
+"""
+Simulate the SO-101 follower's Feetech STS3215 servo bus on a pseudo-terminal.
+
+Lets so101_hardware (and so101_real_moveit.launch.py) run end to end without
+the arm. The servos answer PING, READ, WRITE, SYNC_READ and SYNC_WRITE with
+the STS3215 register layout, are initialised from a LeRobot calibration file
+(ids, homing offset, position limits), and move toward Goal_Position at a
+limited speed while torque is enabled, clamped to their position limits like
+the real servos.
+
+    so101_servo_sim --calibration my_follower.json --link /tmp/so101_sim_port
+    ros2 launch so101_bringup so101_real_moveit.launch.py port:=/tmp/so101_sim_port \\
+        calibration_file:=my_follower.json
+"""
+
+import argparse
+import json
+import os
+import pty
+import select
+import signal
+import sys
+import time
+import tty
+
+PING, READ, WRITE, SYNC_READ, SYNC_WRITE = 0x01, 0x02, 0x03, 0x82, 0x83
+BROADCAST = 0xFE
+
+MODEL_NUMBER, MIN_LIMIT, MAX_LIMIT, HOMING_OFFSET = 3, 9, 11, 31
+TORQUE_ENABLE, GOAL_POSITION, PRESENT_POSITION, PRESENT_VELOCITY = 40, 42, 56, 58
+PRESENT_VOLTAGE, PRESENT_TEMPERATURE, MOVING = 62, 63, 66
+
+SPEED_TICKS_PER_S = 3000.0
+
+
+def checksum(body):
+    return (~sum(body)) & 0xFF
+
+
+def sign_magnitude(value, bit):
+    return (abs(value) | (1 << bit)) if value < 0 else value
+
+
+class Servo:
+    """One STS3215: a register table plus simple motion."""
+
+    def __init__(self, calibration, start_ticks):
+        self.mem = bytearray(128)
+        self.set(MODEL_NUMBER, 2, 777)
+        self.set(MIN_LIMIT, 2, calibration['range_min'])
+        self.set(MAX_LIMIT, 2, calibration['range_max'])
+        self.set(HOMING_OFFSET, 2, sign_magnitude(calibration['homing_offset'], 11))
+        self.set(21, 1, 32)          # P_Coefficient factory default
+        self.set(41, 1, 0)           # Acceleration
+        self.set(7, 1, 250)          # Return_Delay_Time factory default
+        self.set(PRESENT_VOLTAGE, 1, 121)
+        self.set(PRESENT_TEMPERATURE, 1, 31)
+        self.position = float(start_ticks)
+        self.set(GOAL_POSITION, 2, start_ticks)
+        self.sync_present(0.0)
+
+    def get(self, addr, size):
+        return int.from_bytes(self.mem[addr:addr + size], 'little')
+
+    def set(self, addr, size, value):
+        self.mem[addr:addr + size] = int(value).to_bytes(size, 'little')
+
+    def sync_present(self, velocity):
+        self.set(PRESENT_POSITION, 2, int(round(self.position)))
+        self.set(PRESENT_VELOCITY, 2, sign_magnitude(int(round(velocity)), 15))
+        self.set(MOVING, 1, 1 if abs(velocity) > 0 else 0)
+
+    def step(self, dt):
+        velocity = 0.0
+        if self.get(TORQUE_ENABLE, 1):
+            lo, hi = self.get(MIN_LIMIT, 2), self.get(MAX_LIMIT, 2)
+            goal = min(hi, max(lo, self.get(GOAL_POSITION, 2) & 0x7FFF))
+            error = goal - self.position
+            move = max(-SPEED_TICKS_PER_S * dt, min(SPEED_TICKS_PER_S * dt, error))
+            self.position += move
+            velocity = move / dt if dt > 0 else 0.0
+        self.sync_present(velocity)
+
+
+class Bus:
+    """Parses instruction packets from the master side of the pty and answers."""
+
+    def __init__(self, fd, servos):
+        self.fd = fd
+        self.servos = servos
+        self.buffer = bytearray()
+
+    def status(self, sid, params=b''):
+        body = bytes([sid, len(params) + 2, 0]) + bytes(params)
+        os.write(self.fd, b'\xff\xff' + body + bytes([checksum(body)]))
+
+    def feed(self, data):
+        self.buffer += data
+        while True:
+            start = self.buffer.find(b'\xff\xff')
+            if start < 0:
+                self.buffer.clear()
+                return
+            del self.buffer[:start]
+            if len(self.buffer) < 4:
+                return
+            length = self.buffer[3]
+            if len(self.buffer) < 4 + length:
+                return
+            packet = bytes(self.buffer[:4 + length])
+            del self.buffer[:4 + length]
+            if checksum(packet[2:-1]) != packet[-1]:
+                continue
+            self.handle(packet[2], packet[4], packet[5:-1])
+
+    def handle(self, sid, instr, params):
+        servo = self.servos.get(sid)
+        if instr == PING and servo:
+            self.status(sid)
+        elif instr == READ and servo:
+            addr, size = params[0], params[1]
+            self.status(sid, servo.mem[addr:addr + size])
+        elif instr == WRITE and servo:
+            servo.mem[params[0]:params[0] + len(params) - 1] = params[1:]
+            self.status(sid)
+        elif instr == SYNC_READ and sid == BROADCAST:
+            addr, size = params[0], params[1]
+            for target in params[2:]:
+                if target in self.servos:
+                    self.status(target, self.servos[target].mem[addr:addr + size])
+        elif instr == SYNC_WRITE and sid == BROADCAST:
+            addr, size = params[0], params[1]
+            for i in range(2, len(params), size + 1):
+                target = params[i]
+                if target in self.servos:
+                    self.servos[target].mem[addr:addr + size] = params[i + 1:i + 1 + size]
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
+    parser.add_argument('--calibration', required=True, help='LeRobot calibration JSON')
+    parser.add_argument('--link', default='/tmp/so101_sim_port',
+                        help='symlink created to the simulated serial port')
+    parser.add_argument('--missing', type=int, nargs='*', default=[],
+                        help='servo ids that do not answer (fault injection)')
+    args = parser.parse_args()
+
+    with open(args.calibration, encoding='utf-8') as f:
+        calibration = json.load(f)
+    # Start at mid-range (joint zero), gripper at its open end.
+    servos = {}
+    for name, cal in calibration.items():
+        if cal['id'] in args.missing:
+            continue
+        mid = (cal['range_min'] + cal['range_max']) // 2
+        start = cal['range_max'] - 100 if name == 'gripper' else mid
+        servos[cal['id']] = Servo(cal, start)
+
+    master, slave = pty.openpty()
+    tty.setraw(slave)
+    slave_path = os.ttyname(slave)
+    if os.path.lexists(args.link):
+        os.remove(args.link)
+    os.symlink(slave_path, args.link)
+    print(f'so101_servo_sim: {len(servos)} servos on {slave_path} (link {args.link})',
+          flush=True)
+
+    def stop(*_):
+        if os.path.islink(args.link):
+            os.remove(args.link)
+        sys.exit(0)
+    signal.signal(signal.SIGINT, stop)
+    signal.signal(signal.SIGTERM, stop)
+
+    bus = Bus(master, servos)
+    last = time.monotonic()
+    while True:
+        ready, _, _ = select.select([master], [], [], 0.002)
+        now = time.monotonic()
+        for servo in servos.values():
+            servo.step(now - last)
+        last = now
+        if ready:
+            try:
+                bus.feed(os.read(master, 4096))
+            except OSError:
+                time.sleep(0.01)
+
+
+if __name__ == '__main__':
+    main()

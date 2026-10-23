@@ -70,6 +70,19 @@ def generate_launch_description():
         description='Use mock_components/GenericSystem in the robot description '
                     '(mutually exclusive with use_gazebo)')
 
+    declare_use_real_hardware_cmd = DeclareLaunchArgument(
+        name='use_real_hardware',
+        default_value='false',
+        description='Use the real SO-101 follower (so101_hardware) in the robot description')
+
+    declare_port_cmd = DeclareLaunchArgument(
+        name='port', default_value='/dev/ttyACM0',
+        description='Serial port of the follower arm (real hardware)')
+
+    declare_calibration_file_cmd = DeclareLaunchArgument(
+        name='calibration_file', default_value='',
+        description='LeRobot calibration JSON of the follower (real hardware)')
+
     declare_rviz_config_file_cmd = DeclareLaunchArgument(
         name='rviz_config_file',
         default_value='move_group.rviz',
@@ -85,6 +98,7 @@ def generate_launch_description():
         use_camera_str = LaunchConfiguration('use_camera').perform(context)
         use_gazebo_str = LaunchConfiguration('use_gazebo').perform(context)
         use_fake_hardware_str = LaunchConfiguration('use_fake_hardware').perform(context)
+        use_real_hardware_str = LaunchConfiguration('use_real_hardware').perform(context)
 
         pkg_share_moveit_config = get_package_share_directory(package_name_moveit_config)
         pkg_share_description = get_package_share_directory(package_name_description)
@@ -109,6 +123,9 @@ def generate_launch_description():
                     'robot_name': robot_name_str,
                     'use_gazebo': use_gazebo_str,
                     'use_fake_hardware': use_fake_hardware_str,
+                    'use_real_hardware': use_real_hardware_str,
+                    'port': LaunchConfiguration('port').perform(context),
+                    'calibration_file': LaunchConfiguration('calibration_file').perform(context),
                     'use_camera': use_camera_str,
                 },
             )
@@ -182,6 +199,9 @@ def generate_launch_description():
     ld.add_action(declare_use_camera_cmd)
     ld.add_action(declare_use_gazebo_cmd)
     ld.add_action(declare_use_fake_hardware_cmd)
+    ld.add_action(declare_use_real_hardware_cmd)
+    ld.add_action(declare_port_cmd)
+    ld.add_action(declare_calibration_file_cmd)
     ld.add_action(OpaqueFunction(function=configure_setup))
 
     return ld

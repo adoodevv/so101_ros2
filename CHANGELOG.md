@@ -3,6 +3,27 @@
 All notable changes to this repository are listed here. Versions apply to every
 package in the repository.
 
+## [Unreleased]
+
+### Added
+
+- `so101_hardware`: ros2_control `SystemInterface` for the SO-101 follower arm
+  (Feetech STS3215 servos, protocol 0, 1 Mbps). It reads LeRobot calibration
+  files and verifies them against the servos' EEPROM, refusing to start on a
+  mismatch. Joint positions use LeRobot's degrees convention (zero at
+  mid-range); the gripper maps linearly onto its URDF limits. On activate it
+  holds the current pose before enabling torque. It applies LeRobot's servo
+  settings (including gripper torque/current protection) and exposes
+  velocity, load, temperature and voltage state interfaces.
+- `so101_hardware_check`: read-only diagnostic (ping, calibration, live angles).
+- `so101_servo_sim`: simulated STS3215 servo bus on a pseudo-terminal.
+- `use_real_hardware`, `port`, `calibration_file`, `read_only` xacro/launch args.
+- `so101_bringup/launch/so101_real_moveit.launch.py` (`follower_id`, `port`,
+  `read_only`).
+- System tests run against two backends on every `colcon test`: fake hardware,
+  and the real plugin on simulated servos. They can also target the physical
+  arm (`SO101_TEST_BACKEND=real`).
+
 ## [0.2.0] - Unreleased
 
 ### Added

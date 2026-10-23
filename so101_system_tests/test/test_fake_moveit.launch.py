@@ -59,14 +59,10 @@ REJECTION_TEST_TIMEOUT = 30.0
 POSITION_TOLERANCE = 0.01
 # Overshoot past the URDF upper limit used for the out-of-limits goal.
 OUT_OF_LIMITS_MARGIN = 0.5
-# move_group planning attempts per goal. The SRDF `ready` pose sits about
-# 0.03 rad from a moving_jaw/shoulder_link self-collision region (the
-# straight joint path from `home` collides over ~78-98 % of its length), so
-# collision-free paths hug that region and time parameterization corner
-# blending pushes roughly two out of three of them into it; MoveIt's
-# ValidateSolution then refuses to execute. Re-planning is cheap (~0.1 s)
-# and 20 attempts makes a spurious failure very unlikely.
-PLANNING_ATTEMPTS = 20
+# move_group planning attempts per goal. OMPL is randomized; a couple of
+# retries is ordinary client practice and keeps a rare bad sample from
+# failing the run.
+PLANNING_ATTEMPTS = 3
 # How long to watch for further motion after the out-of-limits goal returns.
 NO_MOTION_WINDOW = 2.0
 
@@ -194,7 +190,7 @@ class TestFakeMoveIt(unittest.TestCase):
             for name, position in targets.items()
         ])]
         goal.planning_options.plan_only = False
-        # Re-plan when ValidateSolution rejects a path; see PLANNING_ATTEMPTS.
+        # Re-plan if a plan is rejected; see PLANNING_ATTEMPTS.
         goal.planning_options.replan = True
         goal.planning_options.replan_attempts = PLANNING_ATTEMPTS
 

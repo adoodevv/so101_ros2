@@ -37,13 +37,7 @@ Full launch and test output is written to
 
 ## Known behaviour
 
-- **`ready` is close to self-collision.** The SRDF `ready` pose is about 0.03 rad
-  from a `moving_jaw_so101_v1_link` / `shoulder_link` self-collision region,
-  and the straight joint path from `home` collides for much of its length.
-  OMPL paths into `ready` therefore hug that region, and MoveIt's
-  `ValidateSolution` adapter rejects roughly two out of three of them after
-  time parameterization. The tests allow `move_group` to re-plan (20 attempts)
-  rather than fail on this.
+- `move_group` may re-plan up to 3 times per goal (OMPL is randomized).
 - **Joint goals beyond the limits are clamped, not rejected,** by MoveIt
   (`Assuming maximum bounds instead`). Independently, the controller manager
   runs with `enforce_command_limits: true`, so commands from any source are

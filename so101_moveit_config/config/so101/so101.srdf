@@ -32,11 +32,14 @@
         <joint name="wrist_roll" value="0"/>
     </group_state>
 
+    <!-- ready: tool pointing down ~0.19 m in front of the base, ~0.08 m up.
+         Chosen to keep >= 0.15 rad of joint-space clearance from self-collision
+         (gripper open or closed) and a collision-free straight path from home. -->
     <group_state name="ready" group="arm">
         <joint name="shoulder_pan" value="0"/>
-        <joint name="shoulder_lift" value="0"/>
-        <joint name="elbow_flex" value="1.5708"/>
-        <joint name="wrist_flex" value="1.5708"/>
+        <joint name="shoulder_lift" value="-0.7"/>
+        <joint name="elbow_flex" value="0.6"/>
+        <joint name="wrist_flex" value="1.4"/>
         <joint name="wrist_roll" value="0"/>
     </group_state>
 
@@ -63,9 +66,9 @@
 
     <group_state name="ready" group="arm_with_gripper">
         <joint name="shoulder_pan" value="0"/>
-        <joint name="shoulder_lift" value="0"/>
-        <joint name="elbow_flex" value="1.5708"/>
-        <joint name="wrist_flex" value="1.5708"/>
+        <joint name="shoulder_lift" value="-0.7"/>
+        <joint name="elbow_flex" value="0.6"/>
+        <joint name="wrist_flex" value="1.4"/>
         <joint name="wrist_roll" value="0"/>
         <joint name="gripper" value="1.5"/>
     </group_state>

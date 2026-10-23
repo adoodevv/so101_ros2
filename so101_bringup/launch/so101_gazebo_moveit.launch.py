@@ -11,6 +11,7 @@ import os
 from launch import LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument,
+    GroupAction,
     IncludeLaunchDescription,
     TimerAction,
 )
@@ -64,9 +65,12 @@ def generate_launch_description():
         }.items(),
     )
 
+    # Each include runs in its own GroupAction scope: launch arguments set by
+    # one include (robot_state_publisher's use_rviz:=false and rviz_config_file)
+    # would otherwise leak into the next and override what it is passed.
     delayed_moveit = TimerAction(
         period=moveit_delay,
-        actions=[moveit_launch],
+        actions=[GroupAction([moveit_launch])],
     )
 
     return LaunchDescription([
@@ -80,6 +84,6 @@ def generate_launch_description():
             default_value='10.0',
             description='Seconds after launch before starting move_group '
                         '(after controllers load)'),
-        gazebo_launch,
+        GroupAction([gazebo_launch]),
         delayed_moveit,
     ])

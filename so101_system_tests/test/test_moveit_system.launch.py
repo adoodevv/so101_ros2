@@ -1,9 +1,20 @@
 #!/usr/bin/env python3
 """
-End-to-end system tests for the SO-101 stack on fake hardware.
+End-to-end system tests for the SO-101 stack.
 
-Launches so101_bringup/so101_fake_moveit.launch.py headless (no Gazebo, no
-RViz) and checks, through the public ROS interfaces only, that:
+The backend is chosen with the SO101_TEST_BACKEND environment variable:
+
+- `fake` (default): so101_bringup/so101_fake_moveit.launch.py, i.e.
+  mock_components/GenericSystem.
+- `servo_sim`: so101_bringup/so101_real_moveit.launch.py, i.e. the real
+  so101_hardware plugin, talking the Feetech protocol to so101_servo_sim
+  (six simulated STS3215 servos on a pseudo-terminal).
+- `real`: so101_real_moveit.launch.py on the physical follower arm; set
+  SO101_PORT and SO101_CALIBRATION_FILE. The arm moves through its named
+  poses and to a joint limit: clear its workspace first.
+
+Everything runs headless (no Gazebo, no RViz). Through the public ROS
+interfaces only, the tests check that:
 
 1. joint_state_broadcaster, arm_controller and gripper_controller are active;
 2. the arm plans and executes through MoveIt to the SRDF named states
@@ -12,7 +23,10 @@ RViz) and checks, through the public ROS interfaces only, that:
 4. an arm goal outside the joint limits never moves a joint past its limit
    (it is either rejected with no motion, or clamped to the limit by MoveIt);
 5. a trajectory sent straight to arm_controller, bypassing MoveIt, is clamped
-   to the URDF limits by the controller manager (enforce_command_limits).
+   to the URDF limits: by the controller manager (enforce_command_limits) on
+   fake hardware, by so101_hardware itself on the servo backends;
+6. the arm returns to the SRDF `rest` pose (folded), so the physical arm is
+   resting when the motors switch off at shutdown.
 
 Target joint values come from the installed SRDF and limits from
 /robot_description, so the tests follow the robot config rather than
@@ -20,17 +34,20 @@ duplicating it. The tests are numbered because they share one launched stack
 and run in order.
 """
 
+import json
 import os
+import tempfile
 import time
 import unittest
 import xml.etree.ElementTree as ET
 
-from ament_index_python.packages import get_package_share_directory
+from ament_index_python.packages import get_package_prefix, get_package_share_directory
 from builtin_interfaces.msg import Duration
 from control_msgs.action import FollowJointTrajectory
 from controller_manager_msgs.srv import ListControllers
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription
+from launch.actions import ExecuteProcess, IncludeLaunchDescription, RegisterEventHandler
+from launch.event_handlers import OnProcessIO
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 import launch_testing
 import launch_testing.actions
@@ -54,9 +71,6 @@ STARTUP_TIMEOUT = 90.0
 MOTION_TEST_TIMEOUT = 60.0
 REJECTION_TEST_TIMEOUT = 30.0
 
-# Fake hardware tracks commands exactly; this allows for controller goal
-# tolerances and floating point noise.
-POSITION_TOLERANCE = 0.01
 # Overshoot past the URDF upper limit used for the out-of-limits goal.
 OUT_OF_LIMITS_MARGIN = 0.5
 # move_group planning attempts per goal. OMPL is randomized; a couple of
@@ -67,18 +81,74 @@ PLANNING_ATTEMPTS = 3
 NO_MOTION_WINDOW = 2.0
 
 
+BACKEND = os.environ.get('SO101_TEST_BACKEND', 'fake')
+# MoveIt velocity/acceleration scaling; gentler on the physical arm.
+SPEED_SCALING = 0.3 if BACKEND == 'real' else 1.0
+# How close a joint must get to its target. In simulation: servo resolution
+# (~0.0015 rad per tick) and floating point noise. The physical arm sags under
+# gravity in proportion to the load; measured with P=32, the worst case is
+# elbow_flex at home, 0.048 rad short at 26 % load.
+POSITION_TOLERANCE = 0.08 if BACKEND == 'real' else 0.01
+# How far a joint may drift when nothing should move: exact in simulation,
+# a few ticks of sensor noise on the physical arm.
+NO_MOTION_TOLERANCE = 0.005 if BACKEND == 'real' else 1e-4
+# The controller reports success when the trajectory's time is up; the
+# physical servos are still closing in on the goal then (one run read
+# elbow_flex 0.097 rad off at that instant). Allow them this long to settle.
+SETTLE_TIMEOUT = 2.0 if BACKEND == 'real' else 0.5
+# so101_hardware holds arm joints this far inside their URDF limits.
+LIMIT_HOLD_MARGIN = 0.0 if BACKEND == 'fake' else 0.03
+
+
+def bringup_launch(name, arguments):
+    """Include an so101_bringup launch file with the given arguments."""
+    path = os.path.join(get_package_share_directory('so101_bringup'), 'launch', name)
+    return IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(path), launch_arguments=arguments.items())
+
+
 @pytest.mark.launch_test
 def generate_test_description():
-    """Launch the fake-hardware MoveIt stack without RViz."""
-    fake_moveit_launch = os.path.join(
-        get_package_share_directory('so101_bringup'), 'launch', 'so101_fake_moveit.launch.py')
-    return LaunchDescription([
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(fake_moveit_launch),
-            launch_arguments={'use_rviz': 'false'}.items(),
-        ),
-        launch_testing.actions.ReadyToTest(),
-    ])
+    """Launch the selected backend with MoveIt, headless."""
+    if BACKEND == 'fake':
+        actions = [bringup_launch('so101_fake_moveit.launch.py', {'use_rviz': 'false'})]
+    elif BACKEND == 'servo_sim':
+        calibration = os.path.join(
+            get_package_share_directory('so101_hardware'), 'config',
+            'example_follower_calibration.json')
+        port = os.path.join(tempfile.gettempdir(), f'so101_sim_port_{os.getpid()}')
+        # Start folded, as the arm rests: shoulder_lift on its stop and
+        # elbow_flex near its end, both past their URDF limits. The hardware
+        # must ease them in rather than refuse or snap.
+        with open(calibration, encoding='utf-8') as f:
+            ranges = json.load(f)
+        folded = [f"shoulder_lift={ranges['shoulder_lift']['range_min'] + 30}",
+                  f"elbow_flex={ranges['elbow_flex']['range_max'] - 15}"]
+        sim = ExecuteProcess(
+            cmd=[os.path.join(get_package_prefix('so101_hardware'), 'lib', 'so101_hardware',
+                              'so101_servo_sim'),
+                 '--calibration', calibration, '--link', port, '--start', *folded],
+            output='screen')
+        robot = bringup_launch('so101_real_moveit.launch.py', {
+            'port': port, 'calibration_file': calibration, 'use_rviz': 'false'})
+        started = []
+
+        def start_robot_when_sim_is_up(event):
+            if not started and b'servos on' in event.text:
+                started.append(True)
+                return [robot]
+            return None
+
+        actions = [sim, RegisterEventHandler(OnProcessIO(
+            target_action=sim, on_stdout=start_robot_when_sim_is_up))]
+    elif BACKEND == 'real':
+        actions = [bringup_launch('so101_real_moveit.launch.py', {
+            'port': os.environ.get('SO101_PORT', '/dev/ttyACM0'),
+            'calibration_file': os.environ.get('SO101_CALIBRATION_FILE', ''),
+            'use_rviz': 'false'})]
+    else:
+        raise ValueError(f'Unknown SO101_TEST_BACKEND {BACKEND!r}')
+    return LaunchDescription(actions + [launch_testing.actions.ReadyToTest()])
 
 
 def load_srdf_group_states():
@@ -93,7 +163,7 @@ def load_srdf_group_states():
     return states
 
 
-class TestFakeMoveIt(unittest.TestCase):
+class TestMoveItSystem(unittest.TestCase):
     """Drive the launched stack through its ROS interfaces."""
 
     @classmethod
@@ -180,8 +250,8 @@ class TestFakeMoveIt(unittest.TestCase):
         request.group_name = group
         request.num_planning_attempts = 5
         request.allowed_planning_time = 5.0
-        request.max_velocity_scaling_factor = 1.0
-        request.max_acceleration_scaling_factor = 1.0
+        request.max_velocity_scaling_factor = SPEED_SCALING
+        request.max_acceleration_scaling_factor = SPEED_SCALING
         request.start_state.is_diff = True
         request.goal_constraints = [Constraints(joint_constraints=[
             JointConstraint(
@@ -207,11 +277,20 @@ class TestFakeMoveIt(unittest.TestCase):
         self.assertEqual(
             error_code, MoveItErrorCodes.SUCCESS,
             f'MoveIt failed to reach {group}/{state}: error code {error_code}')
-        positions = self.fresh_joint_positions()
+        start = time.monotonic()
+        settle_until = start + SETTLE_TIMEOUT
+        while True:
+            positions = self.fresh_joint_positions()
+            settled = all(abs(positions[joint] - target) <= POSITION_TOLERANCE
+                          for joint, target in targets.items())
+            if settled or time.monotonic() >= settle_until:
+                break
+        waited = time.monotonic() - start
         for joint, target in targets.items():
             self.assertAlmostEqual(
                 positions[joint], target, delta=POSITION_TOLERANCE,
-                msg=f'{group}/{state}: {joint} at {positions[joint]:.4f}, expected {target:.4f}')
+                msg=f'{group}/{state}: {joint} at {positions[joint]:.4f}, expected '
+                    f'{target:.4f} ({waited:.1f} s after the motion finished)')
 
     # --- tests -------------------------------------------------------------
 
@@ -285,14 +364,14 @@ class TestFakeMoveIt(unittest.TestCase):
             # were goal-constrained to their current values, so they may only
             # drift within the planner's goal tolerance.
             self.assertAlmostEqual(
-                after['shoulder_pan'], upper, delta=POSITION_TOLERANCE,
+                after['shoulder_pan'], upper, delta=POSITION_TOLERANCE + LIMIT_HOLD_MARGIN,
                 msg='shoulder_pan was not clamped to its upper limit')
             held = [joint for joint in before if joint != 'shoulder_pan']
             delta = POSITION_TOLERANCE
         else:
             # Rejected or failed: nothing may move.
             held = list(before)
-            delta = 1e-4
+            delta = NO_MOTION_TOLERANCE
         for joint in held:
             self.assertAlmostEqual(
                 after[joint], before[joint], delta=delta,
@@ -330,3 +409,8 @@ class TestFakeMoveIt(unittest.TestCase):
                 after[joint], lower - POSITION_TOLERANCE, f'{joint} below its lower limit')
             self.assertLessEqual(
                 after[joint], upper_limit + POSITION_TOLERANCE, f'{joint} above its upper limit')
+
+    def test_06_arm_returns_to_rest(self):
+        """The arm folds back to the SRDF rest pose, where it can be left unpowered."""
+        self.start_deadline(MOTION_TEST_TIMEOUT)
+        self.assert_named_state_reached('arm', 'rest')

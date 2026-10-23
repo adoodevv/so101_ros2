@@ -1,0 +1,9 @@
+<library path="so101_hardware">
+  <class name="so101_hardware/SO101SystemHardware"
+         type="so101_hardware::SO101SystemHardware"
+         base_class_type="hardware_interface::SystemInterface">
+    <description>
+      ros2_control system for the SO-101 follower arm (Feetech STS3215 servos, LeRobot calibration).
+    </description>
+  </class>
+</library>

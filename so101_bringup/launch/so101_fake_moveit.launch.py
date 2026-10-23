@@ -11,7 +11,7 @@ default, so the stack runs headless (CI, system tests, containers).
 import os
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.actions import DeclareLaunchArgument, GroupAction, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
@@ -82,6 +82,9 @@ def generate_launch_description():
         }.items(),
     )
 
+    # Each include runs in its own GroupAction scope: launch arguments set by
+    # one include (robot_state_publisher's use_rviz:=false and rviz_config_file)
+    # would otherwise leak into the next and override what it is passed.
     return LaunchDescription([
         DeclareLaunchArgument(
             'robot_name', default_value='so101',
@@ -89,8 +92,8 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'use_rviz', default_value='false', choices=['true', 'false'],
             description='Start RViz with the MoveIt MotionPlanning plugin'),
-        robot_state_publisher_launch,
+        GroupAction([robot_state_publisher_launch]),
         ros2_control_node,
         controller_spawner,
-        move_group_launch,
+        GroupAction([move_group_launch]),
     ])

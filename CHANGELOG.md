@@ -3,6 +3,53 @@
 All notable changes to this repository are listed here. Versions apply to every
 package in the repository.
 
+## [Unreleased]
+
+### Added
+
+- `so101_hardware`: ros2_control `SystemInterface` for the SO-101 follower arm
+  (Feetech STS3215 servos, protocol 0, 1 Mbps). It reads LeRobot calibration
+  files and verifies them against the servos' EEPROM, refusing to start on a
+  mismatch. Joint positions use LeRobot's degrees convention (zero at
+  mid-range); the gripper maps linearly onto its URDF limits. On activate it
+  holds the current pose before enabling torque. It applies LeRobot's servo
+  settings (including gripper torque/current protection) and exposes
+  velocity, load, temperature and voltage state interfaces.
+- `so101_hardware_check`: read-only diagnostic (ping, calibration, live angles).
+- `so101_servo_sim`: simulated STS3215 servo bus on a pseudo-terminal.
+- `use_real_hardware`, `port`, `calibration_file`, `read_only` xacro/launch args.
+- `so101_bringup/launch/so101_real_moveit.launch.py` (`follower_id`, `port`,
+  `read_only`).
+- System tests run against two backends on every `colcon test`: fake hardware,
+  and the real plugin on simulated servos. They can also target the physical
+  arm (`SO101_TEST_BACKEND=real`).
+- On real hardware the plugin enforces the joint limits (URDF limits intersected
+  with the calibrated range; arm joints held 0.03 rad inside, since a loaded
+  servo settles ~10 ticks short of its goal) and the launch disables the
+  controller manager's `enforce_command_limits`, which stopped every controller
+  when the arm rested past a URDF limit. A joint up to 0.25 rad outside its
+  limits at activation is eased in at 0.2 rad/s; beyond that activation is
+  refused.
+- `so101_hardware_check` names the calibration file that matches the servos on a
+  mismatch, and flags joints outside their limits.
+- `so101_servo_sim --start JOINT=TICKS` sets initial positions.
+- Servo P gain 32 (factory) on the real arm instead of LeRobot's 16: gravity
+  sag on the physical arm measured 0.107 → 0.048 rad (elbow_flex at home).
+  Per-joint `p_coefficient` override.
+- SRDF `rest` pose (folded); the system tests end there so the physical arm
+  is resting when the motors switch off.
+
+### Fixed
+
+- EEPROM writes are read back and retried: an EEPROM write can outlast the
+  reply timeout, which made configure fail on the physical arm.
+- `.gitignore` ignored every `src/` directory, so `so101_hardware/src` was
+  never committed.
+- Bringup launches opened an empty RViz: `robot_state_publisher.launch.py`'s
+  `use_rviz` and `rviz_config_file` leaked into the `move_group` include (an
+  invalid config path on the real launch; RViz never started on the fake
+  launch). Includes are now scoped with `GroupAction`.
+
 ## [0.2.0] - Unreleased
 
 ### Added

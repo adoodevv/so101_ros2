@@ -19,14 +19,22 @@ if(BUILD_TESTING)
   set(ament_cmake_cpplint_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
 
-  # End-to-end tests against so101_bringup/so101_fake_moveit.launch.py.
-  # Runs on its own DDS domain, localhost only, so it neither sees nor
-  # disturbs other ROS 2 graphs on the machine.
+  # End-to-end tests. The same suite runs against fake hardware and against
+  # the real so101_hardware plugin driving simulated servos. Each run gets its
+  # own DDS domain, localhost only, so it neither sees nor disturbs other
+  # ROS 2 graphs on the machine.
   find_package(launch_testing_ament_cmake REQUIRED)
   add_launch_test(
-    test/test_fake_moveit.launch.py
+    test/test_moveit_system.launch.py
+    TARGET test_moveit_system_fake
     TIMEOUT 300
-    ENV ROS_DOMAIN_ID=73 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
+    ENV SO101_TEST_BACKEND=fake ROS_DOMAIN_ID=73 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
+  )
+  add_launch_test(
+    test/test_moveit_system.launch.py
+    TARGET test_moveit_system_servo_sim
+    TIMEOUT 300
+    ENV SO101_TEST_BACKEND=servo_sim ROS_DOMAIN_ID=74 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
   )
 endif()
 

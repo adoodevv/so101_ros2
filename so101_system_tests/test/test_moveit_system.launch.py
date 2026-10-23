@@ -69,9 +69,6 @@ STARTUP_TIMEOUT = 90.0
 MOTION_TEST_TIMEOUT = 60.0
 REJECTION_TEST_TIMEOUT = 30.0
 
-# Allows for controller goal tolerances, servo resolution (~0.0015 rad per
-# tick) and floating point noise.
-POSITION_TOLERANCE = 0.01
 # Overshoot past the URDF upper limit used for the out-of-limits goal.
 OUT_OF_LIMITS_MARGIN = 0.5
 # move_group planning attempts per goal. OMPL is randomized; a couple of
@@ -85,6 +82,15 @@ NO_MOTION_WINDOW = 2.0
 BACKEND = os.environ.get('SO101_TEST_BACKEND', 'fake')
 # MoveIt velocity/acceleration scaling; gentler on the physical arm.
 SPEED_SCALING = 0.3 if BACKEND == 'real' else 1.0
+# How close a joint must get to its target. In simulation: servo resolution
+# (~0.0015 rad per tick) and floating point noise. The physical arm, with
+# LeRobot's soft servo gains, settles up to ~0.035 rad (2 deg) short under
+# load (measured: shoulder_lift at home, the gripper at open, elbow_flex while
+# shoulder_pan swings).
+POSITION_TOLERANCE = 0.05 if BACKEND == 'real' else 0.01
+# How far a joint may drift when nothing should move: exact in simulation,
+# a few ticks of sensor noise on the physical arm.
+NO_MOTION_TOLERANCE = 0.005 if BACKEND == 'real' else 1e-4
 # so101_hardware holds arm joints this far inside their URDF limits.
 LIMIT_HOLD_MARGIN = 0.0 if BACKEND == 'fake' else 0.03
 
@@ -351,7 +357,7 @@ class TestMoveItSystem(unittest.TestCase):
         else:
             # Rejected or failed: nothing may move.
             held = list(before)
-            delta = 1e-4
+            delta = NO_MOTION_TOLERANCE
         for joint in held:
             self.assertAlmostEqual(
                 after[joint], before[joint], delta=delta,

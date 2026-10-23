@@ -1,5 +1,11 @@
 # so101_teleop_bridge
 
+> **Legacy.** `so101_hardware`'s `so101_leader` node replaces this package: it reads the
+> leader without LeRobot or conda, maps the gripper correctly, publishes on
+> `/leader/joint_states` (not the follower's `/joint_states`) and can teleoperate the follower
+> (`ros2 launch so101_bringup so101_teleop.launch.py`). See
+> [so101_hardware](../so101_hardware/README.md#leader-arm-so101_leader).
+
 Bridge between a physical SO-101 **leader arm** (via [LeRobot](https://github.com/huggingface/lerobot)) and ROS 2. Reads joint positions from the leader over USB and publishes them on `/joint_states`, so you can drive the robot model in RViz (or any node that consumes joint states).
 
 ## What it does

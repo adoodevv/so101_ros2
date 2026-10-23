@@ -1,16 +1,19 @@
 # so101_hardware
 
-ros2_control hardware interface for the **SO-101 follower arm**: six Feetech STS3215
-servos on one serial bus, calibrated with [LeRobot](https://github.com/huggingface/lerobot).
-With it, the same controllers, MoveIt config and system tests used in simulation drive
-the real arm.
+ros2_control hardware interface for the **SO-101 follower arm**, and a node for the
+**SO-101 leader arm**: six Feetech STS3215 servos per arm on one serial bus, calibrated with
+[LeRobot](https://github.com/huggingface/lerobot). With it, the same controllers, MoveIt config
+and system tests used in simulation drive the real arm, and the leader teleoperates it.
+Setting the arms up (permissions, LeRobot calibration) is in the
+[main README](../README.md#setting-up-your-physical-arms-once).
 
 | Piece | What it is |
 |-------|------------|
 | `so101_hardware/SO101SystemHardware` | ros2_control `SystemInterface` plugin |
-| `so101_hardware_check` | Read-only diagnostic: ping, calibration check, live joint angles |
+| `so101_leader` | Reads the leader arm; publishes `leader/joint_states` and, with `teleop:=true`, commands the follower |
+| `so101_hardware_check` | Read-only diagnostic for either arm: ping, calibration check, live joint angles |
 | `so101_servo_sim` | Six simulated STS3215 servos on a pseudo-terminal, for testing without the arm |
-| `config/example_follower_calibration.json` | Example LeRobot calibration (used by the tests) |
+| `config/example_follower_calibration.json`, `config/example_leader_calibration.json` | Example LeRobot calibrations (used by the tests) |
 
 ## How it maps LeRobot to ROS
 
@@ -133,9 +136,54 @@ the hardware value for one servo).
 at 25 % load with P=32. LeRobot's tools write P=16 back when they connect; the plugin
 writes 32 again on its next start (an EEPROM write, done with torque off).
 
+## Leader arm: `so101_leader`
+
+Reads the leader's six servos at `rate_hz` and publishes their positions on
+`leader/joint_states` in the follower's joint convention (same mapping as the plugin;
+gripper closed → open maps to −0.1745 → 1.7453). It checks the leader's calibration against
+its servos at start, like the plugin; a mismatch also catches swapped ports. It never
+writes a servo register: the leader's torque stays off.
+
+With `teleop:=true` it commands the follower's position controllers
+(`arm_forward_controller`, `gripper_forward_controller`, `std_msgs/Float64MultiArray` on
+`/<controller>/commands`), once the controller manager reports both active:
+
+1. **Sync.** The command starts at the follower's pose (from `/joint_states`) and moves to the
+   leader's at `sync_velocity`, so the follower never jumps to a distant leader pose.
+2. **Track.** Once every joint is within `sync_tolerance`, it follows the leader, limited to
+   `max_velocity` per joint.
+3. **Dropout.** After `max_consecutive_read_errors` failed reads it stops commanding (the
+   follower holds), and when the leader answers again it syncs again from the follower's pose.
+
+`so101_bringup/so101_teleop.launch.py` starts it with the follower.
+
+| Parameter | Default | |
+|-----------|---------|--|
+| `port` | `/dev/ttyACM1` | leader serial port |
+| `leader_id` | `my_leader` | calibration `$HF_LEROBOT_HOME/calibration/teleoperators/so_leader/<id>.json` |
+| `calibration_file` | (from `leader_id`) | explicit calibration JSON |
+| `rate_hz` | `100` | read and command rate |
+| `teleop` | `false` | command the follower |
+| `sync_velocity` | `0.5` | rad/s while moving to the leader's pose |
+| `max_velocity` | `3.0` | rad/s per joint while tracking |
+| `sync_tolerance` | `0.05` | rad; switch from sync to tracking |
+| `max_consecutive_read_errors` | `5` | then stop commanding |
+| `arm_controller`, `gripper_controller` | `arm_forward_controller`, `gripper_forward_controller` | follower controllers |
+| `controller_manager` | `/controller_manager` | |
+| `follower_joint_states_topic` | `/joint_states` | |
+
+Leader only, in RViz (replaces `so101_teleop_bridge`):
+
+```bash
+ros2 run so101_hardware so101_leader --ros-args -p port:=/dev/ttyACM1 \
+  -r leader/joint_states:=/joint_states
+ros2 launch so101_description robot_state_publisher.launch.py jsp_gui:=false use_jsp:=false
+```
+
 ## Tests
 
 `colcon test --packages-select so101_hardware` runs gtest suites for the protocol (packet
 bytes checked against the Feetech spec), the bus (fake transport: timeouts, garbage,
-wrong id, bad checksum, sync read/write) and the calibration mapping (with real
-`my_follower` values).
+wrong id, bad checksum, sync read/write), the calibration mapping (with real
+`my_follower` values) and the teleop filter (sync speed, switch to tracking, re-sync).
+`so101_system_tests` runs teleoperation end to end on two simulated arms.

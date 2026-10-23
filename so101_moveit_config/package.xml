@@ -18,6 +18,7 @@
   <exec_depend>moveit_ros_visualization</exec_depend>
   <exec_depend>moveit_configs_utils</exec_depend>
   <exec_depend>moveit_simple_controller_manager</exec_depend>
+  <exec_depend>position_controllers</exec_depend>
   <exec_depend>rviz2</exec_depend>
   <exec_depend>rviz_visual_tools</exec_depend>
 

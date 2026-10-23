@@ -7,6 +7,22 @@ package in the repository.
 
 ### Added
 
+- **Leader-arm teleoperation.** `so101_hardware`'s `so101_leader` node reads the
+  SO-101 leader (LeRobot calibration, verified against the servos; never
+  writes to them) and publishes `leader/joint_states`. With `teleop:=true` it
+  streams the pose to the follower once its position controllers are active:
+  first a slow sync to the leader's pose (0.5 rad/s), then tracking at up to
+  3 rad/s per joint; it stops commanding when the leader stops answering and
+  re-syncs when it is back. `so101_bringup/so101_teleop.launch.py`
+  (`so101_real_moveit.launch.py teleop:=true`), and `arm_forward_controller` /
+  `gripper_forward_controller` (`JointGroupPositionController`) in
+  `ros2_controllers.yaml`.
+- `test_teleop`: teleoperation end to end on two simulated arms (pose, sync
+  speed, dropout and re-sync); `TeleopFilter` unit tests.
+- README: one-time setup of the physical arms (permissions, LeRobot motor
+  setup and calibration, calibration files from another computer) and
+  troubleshooting.
+
 - `so101_hardware`: ros2_control `SystemInterface` for the SO-101 follower arm
   (Feetech STS3215 servos, protocol 0, 1 Mbps). It reads LeRobot calibration
   files and verifies them against the servos' EEPROM, refusing to start on a

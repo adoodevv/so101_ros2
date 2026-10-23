@@ -7,7 +7,7 @@
   <img src="demo.gif" alt="SO-101 arm simulation demo" width="800"/>
 </p>
 
-ROS 2 stack for the [SO-101](https://github.com/TheRobotStudio/SO-ARM100) robot arm on **ROS 2 Jazzy**. Visualize the arm in RViz, run it in **Gazebo Harmonic** or headless on fake hardware, and plan motions with **MoveIt 2**.
+ROS 2 stack for the [SO-101](https://github.com/TheRobotStudio/SO-ARM100) robot arm on **ROS 2 Jazzy**. Visualize the arm in RViz, run it in **Gazebo Harmonic** or headless on fake hardware, plan motions with **MoveIt 2**, and drive the **real arm**, either from MoveIt or by teleoperation with the SO-101 leader arm. It uses your existing [LeRobot](https://github.com/huggingface/lerobot) calibration.
 
 ## What you can do
 
@@ -17,6 +17,8 @@ ROS 2 stack for the [SO-101](https://github.com/TheRobotStudio/SO-ARM100) robot 
 - **Mount** the arm on another robot (`parent` link, pose, and a `prefix` applied to every name)
 - **Plan and execute** pick-and-place style motions in MoveIt 2 (OMPL, Pilz, STOMP)
 - **Bridge** an optional Intel RealSense D435 camera from Gazebo into ROS 2
+- **Drive the real follower arm** through ros2_control and MoveIt, using its LeRobot calibration
+- **Teleoperate** the follower with the leader arm, in ROS 2 (no LeRobot needed at runtime)
 
 ## Packages
 
@@ -26,10 +28,10 @@ ROS 2 stack for the [SO-101](https://github.com/TheRobotStudio/SO-ARM100) robot 
 | [so101_description](so101_description/) | URDF/xacro, meshes, RViz config |
 | [so101_moveit_config](so101_moveit_config/) | MoveIt 2 config, SRDF, planning pipelines, ros2_control controllers |
 | [so101_gazebo](so101_gazebo/) | Gazebo Harmonic simulation and worlds |
-| [so101_hardware](so101_hardware/) | ros2_control plugin for the real follower arm (Feetech STS3215, LeRobot calibration), check tool, servo simulator |
-| [so101_bringup](so101_bringup/) | Launch files for Gazebo, fake hardware and the real arm, each with MoveIt |
-| [so101_system_tests](so101_system_tests/) | Headless end-to-end tests on fake hardware (`launch_testing`) |
-| [so101_teleop_bridge](so101_teleop_bridge/) | Publishes a physical SO-101 leader arm's joints on `/joint_states` |
+| [so101_hardware](so101_hardware/) | ros2_control plugin for the real follower arm (Feetech STS3215, LeRobot calibration), leader-arm node for teleoperation, check tool, servo simulator |
+| [so101_bringup](so101_bringup/) | Launch files for Gazebo, fake hardware, the real arm with MoveIt, and teleoperation |
+| [so101_system_tests](so101_system_tests/) | Headless end-to-end tests on fake hardware, simulated servos and the physical arm (`launch_testing`) |
+| [so101_teleop_bridge](so101_teleop_bridge/) | Legacy: shows the leader arm in RViz through LeRobot's Python API. Superseded by `so101_hardware`'s `so101_leader` |
 
 ## Status
 
@@ -45,6 +47,8 @@ ROS 2 stack for the [SO-101](https://github.com/TheRobotStudio/SO-ARM100) robot 
 - [x] Joint limits enforced for every command source (controller manager in simulation, the hardware plugin on the real arm)
 - [x] Hardware interface for the real arm (ros2_control plugin, tested end to end against simulated servos)
 - [x] Hardware interface validated on the physical arm: system tests pass on the follower (`SO101_TEST_BACKEND=real`, [first-run procedure](so101_hardware/README.md#first-run-on-your-arm))
+- [x] Leader-arm teleoperation (`so101_leader` + streaming position controllers, tested end to end on simulated servos)
+- [ ] Teleoperation validated on the physical arms
 - [ ] Prefix-aware MoveIt / controller configuration (currently assumes an empty prefix)
 
 ## Prerequisites
@@ -67,6 +71,78 @@ rosdep install --from-paths src --ignore-src -r -y
 colcon build --symlink-install
 source install/setup.bash
 ```
+
+## Setting up your physical arms (once)
+
+Skip this section if you only use simulation. This stack does not calibrate the arms: it uses
+the calibration [LeRobot](https://github.com/huggingface/lerobot) creates, so LeRobot is needed
+once, for setup. After that, everything runs in ROS 2 without LeRobot.
+
+**1. Hardware.** An SO-101 follower and, for teleoperation, an SO-101 leader, each with its
+servo board on USB and its power supply connected and switched on (the servos do not answer
+on USB power alone).
+
+**2. Serial port access.** Add yourself to the `dialout` group, then log out and back in:
+
+```bash
+sudo usermod -aG dialout $USER
+groups   # must list dialout
+```
+
+**3. Install LeRobot** (in its own Python environment, e.g. conda; not needed in the ROS
+terminals) following its [installation guide](https://huggingface.co/docs/lerobot/installation)
+with the Feetech extra (`pip install 'lerobot[feetech]'`).
+
+**4. Find each arm's port.** Run `lerobot-find-port` and unplug the arm when asked, or compare
+`ls /dev/serial/by-id/` with the arm unplugged and plugged in. `/dev/ttyACM*` numbers follow
+plug-in order (plug the follower first and it is `/dev/ttyACM0`, the leader `/dev/ttyACM1`);
+the `/dev/serial/by-id/...` path stays the same whatever the order, so prefer it.
+
+**5. New arms only: set the motor IDs**, one servo at a time, as LeRobot prompts:
+
+```bash
+lerobot-setup-motors --robot.type=so101_follower --robot.port=/dev/ttyACM0
+lerobot-setup-motors --teleop.type=so101_leader --teleop.port=/dev/ttyACM1
+```
+
+**6. Calibrate both arms.** The `id` you choose names the calibration; pass the same id to
+this stack (defaults: `my_follower`, `my_leader`):
+
+```bash
+lerobot-calibrate --robot.type=so101_follower --robot.port=/dev/ttyACM0 --robot.id=my_follower
+lerobot-calibrate --teleop.type=so101_leader --teleop.port=/dev/ttyACM1 --teleop.id=my_leader
+```
+
+LeRobot writes each calibration to a file **and into the arm's servos**:
+
+| Arm | Calibration file |
+|-----|------------------|
+| follower | `~/.cache/huggingface/lerobot/calibration/robots/so_follower/<id>.json` |
+| leader | `~/.cache/huggingface/lerobot/calibration/teleoperators/so_leader/<id>.json` |
+
+(`$HF_LEROBOT_HOME` replaces `~/.cache/huggingface/lerobot` if you set it.) This stack reads
+the file and checks it against the servos before it enables anything. If they differ it
+refuses to start and names the file that does match. Keep these in mind:
+
+- **Calibrated on another computer?** Copy the two `.json` files into the paths above on this
+  one, or pass them with `calibration_file:=` / `leader_calibration_file:=`. The servos
+  already hold the calibration, so no new calibration is needed.
+- **Connecting with LeRobot under a different id writes that id's calibration into the
+  servos.** Use one id per arm everywhere.
+- **Recalibrated?** Nothing to change here; the new file and the servos match again.
+
+**7. Check both arms (read-only, nothing moves):**
+
+```bash
+source ~/ros2_ws/install/setup.bash
+ros2 run so101_hardware so101_hardware_check --port /dev/ttyACM0 \
+  --calibration ~/.cache/huggingface/lerobot/calibration/robots/so_follower/my_follower.json
+ros2 run so101_hardware so101_hardware_check --port /dev/ttyACM1 \
+  --calibration ~/.cache/huggingface/lerobot/calibration/teleoperators/so_leader/my_leader.json
+```
+
+Each must end with "All servos present and calibrated". Then follow the
+[first-run procedure](so101_hardware/README.md#first-run-on-your-arm) before the first powered run.
 
 ## Quick start
 
@@ -205,7 +281,38 @@ ros2 launch so101_bringup so101_real_moveit.launch.py read_only:=true
 ros2 launch so101_bringup so101_real_moveit.launch.py
 ```
 
-If the check reports `MISMATCH`, it names the calibration file that matches the servos; pass that id as `follower_id:=` to the launch. Follow the full [first-run procedure](so101_hardware/README.md#first-run-on-your-arm) the first time.
+Other ids or ports: `follower_id:=<id>` (or `calibration_file:=<path>`) and `port:=<device>`. If the check reports `MISMATCH`, it names the calibration file that matches the servos; pass that id as `follower_id:=`. Follow the full [first-run procedure](so101_hardware/README.md#first-run-on-your-arm) the first time.
+
+Before stopping (Ctrl+C turns the motors off and the arm goes limp), move it to the folded **`rest`** pose: in RViz, Goal State `rest`, Plan & Execute.
+
+### 6. Teleoperation with the leader arm
+
+Move the leader by hand; the follower copies it. Both arms set up and checked as above.
+
+```bash
+ros2 launch so101_bringup so101_teleop.launch.py
+```
+
+Defaults: follower `port:=/dev/ttyACM0` `follower_id:=my_follower`, leader
+`leader_port:=/dev/ttyACM1` `leader_id:=my_leader`. On start the follower first moves
+**slowly** (0.5 rad/s) to the leader's current pose, so start with both arms in a similar pose
+and the follower's workspace clear; once it matches ("Follower matches the leader;
+teleoperating"), it follows the leader at up to 3 rad/s per joint. If the leader stops
+answering, the follower holds still and re-syncs slowly when it is back. The leader's servos are
+only read, never written. Its pose is also published on `/leader/joint_states`.
+
+## Troubleshooting the real arms
+
+| Symptom | Fix |
+|---------|-----|
+| `Permission denied` on `/dev/ttyACM*` | Join the `dialout` group (setup step 2) and log in again |
+| `Serial port ... does not exist` | Arm unplugged, or another port number: `ls /dev/serial/by-id/` |
+| `No reply from servo N` | Arm power supply off, loose servo cable, or another program has the port open (LeRobot, a second launch, `so101_hardware_check`) |
+| `Calibration file ... not found` | Calibrate (setup step 6), or pass `calibration_file:=` / `leader_calibration_file:=` |
+| `MISMATCH` / `does not match` | The servos hold another calibration: use the file the check names, or reconnect once with LeRobot using your id |
+| Leader check reports a mismatch with the follower's values | Ports swapped: the follower is on the port you gave for the leader |
+| `outside its limits ... Move it inside by hand` | A joint was moved far past its range by hand; move it back and relaunch |
+| The follower trembles while holding | Lower its servo gain: `p_coefficient` in `so101_description/urdf/control/so101_ros2_control.urdf.xacro` (32; LeRobot uses 16) |
 
 ## Control the arm manually
 

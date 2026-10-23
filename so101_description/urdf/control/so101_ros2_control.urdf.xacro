@@ -98,8 +98,15 @@
                 <state_interface name="position">
                     <xacro:initial_value joint="gripper"/>
                 </state_interface>
-                <state_interface name="velocity"/>
-                <state_interface name="effort"/>
+                <!-- No controller uses these, and mock hardware would only echo
+                     zeros, so they are omitted with use_fake_hardware. They stay
+                     elsewhere so joint_state_broadcaster keeps publishing them in
+                     Gazebo. In Gazebo the effort is the simulated joint effort:
+                     it is not contact or grip-force sensing. -->
+                <xacro:unless value="${use_fake_hardware}">
+                    <state_interface name="velocity"/>
+                    <state_interface name="effort"/>
+                </xacro:unless>
             </joint>
 
         </ros2_control>

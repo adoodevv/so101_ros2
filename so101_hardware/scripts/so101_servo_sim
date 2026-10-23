@@ -146,7 +146,13 @@ def main():
                         help='symlink created to the simulated serial port')
     parser.add_argument('--missing', type=int, nargs='*', default=[],
                         help='servo ids that do not answer (fault injection)')
+    parser.add_argument('--start', nargs='*', default=[], metavar='JOINT=TICKS',
+                        help='start position of a joint in ticks, e.g. gripper=3923')
     args = parser.parse_args()
+    start_ticks = {}
+    for item in args.start:
+        name, _, ticks = item.partition('=')
+        start_ticks[name] = int(ticks)
 
     with open(args.calibration, encoding='utf-8') as f:
         calibration = json.load(f)
@@ -157,6 +163,7 @@ def main():
             continue
         mid = (cal['range_min'] + cal['range_max']) // 2
         start = cal['range_max'] - 100 if name == 'gripper' else mid
+        start = start_ticks.get(name, start)
         servos[cal['id']] = Servo(cal, start)
 
     master, slave = pty.openpty()

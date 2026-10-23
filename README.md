@@ -205,7 +205,7 @@ ros2 launch so101_bringup so101_real_moveit.launch.py read_only:=true
 ros2 launch so101_bringup so101_real_moveit.launch.py
 ```
 
-Follow the full [first-run procedure](so101_hardware/README.md#first-run-on-your-arm) the first time.
+If the check reports `MISMATCH`, it names the calibration file that matches the servos; pass that id as `follower_id:=` to the launch. Follow the full [first-run procedure](so101_hardware/README.md#first-run-on-your-arm) the first time.
 
 ## Control the arm manually
 

@@ -85,6 +85,11 @@ private:
     int protection_current = -1;
     int overload_torque = -1;
     int last_ticks = 0;
+    // Commands are clamped to [lower, upper]: the URDF limits (less a small
+    // margin) intersected with the calibrated range, so the plugin enforces
+    // the limits itself.
+    double lower = 0.0;
+    double upper = 0.0;
   };
 
   bool open_bus();

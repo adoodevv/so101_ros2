@@ -24,12 +24,18 @@ differ. It never rewrites your calibration.
 | shoulder_pan … wrist_roll | `rad = (ticks − mid) · 2π / 4095`, with `mid = (range_min + range_max) / 2`. This is LeRobot's degrees mode in radians, matching the SO-101 "new calibration" URDF (zero at mid-range). |
 | gripper | linear: `range_min` (closed, LeRobot 0 %) → −0.1745 rad, `range_max` (open, 100 %) → 1.7453 rad, the URDF gripper limits |
 
-`drive_mode: 1` reverses a joint. Commands are clamped to the calibrated range, and the
-controller manager also clamps them to the URDF limits (`enforce_command_limits`).
+`drive_mode: 1` reverses a joint.
+
+**Limits.** The plugin clamps every command to the URDF limits (held 0.005 rad inside,
+so a servo resting at a limit never reads past it and MoveIt can always plan from it)
+intersected with the calibrated range. The real launch turns off the controller manager's
+`enforce_command_limits`: its limiter stops every controller as soon as a joint *reads*
+past a URDF limit, and the real arm's folded rest pose is a few degrees past
+`shoulder_lift`'s.
 
 **Lifecycle:**
 - **configure:** opens the port and checks every servo (ping, model, calibration). It then applies LeRobot's connect-time settings: PID 16/0/32, acceleration 254, return delay 0, and 50 % torque/current limits on the gripper. Only registers that differ are written; on an arm already used with LeRobot, nothing is.
-- **activate:** reads the pose, sets the goal to it, *then* enables torque. The arm holds where it is and does not jump.
+- **activate:** reads the pose, sets the goal to it, *then* enables torque. The arm holds where it is and does not jump. A joint resting up to 0.1 rad outside its limits is moved to the limit (with a warning; the folded `shoulder_lift` does this, about 2°). Further out, activation is refused and the launch stops: move the joint inside by hand and relaunch.
 - **deactivate:** torque off, so the arm goes limp. Support it if it is raised.
 - **communication error:** after `max_consecutive_read_errors` failed reads, the hardware goes to error and torque is left as it is, so the servos keep holding their last goal.
 
@@ -51,8 +57,17 @@ use the stable path under `/dev/serial/by-id/` (`ls -l /dev/serial/by-id/`) as `
 ros2 run so101_hardware so101_hardware_check --port /dev/ttyACM0 \
   --calibration ~/.cache/huggingface/lerobot/calibration/robots/so_follower/my_follower.json
 ```
-You want six `ok` / `matches` rows and "All servos present and calibrated". Add `--watch`
-to keep printing angles while you move joints by hand.
+You want six `ok` / `matches` rows, `ok` (or "slightly outside") in the `limits` column,
+and "All servos present and calibrated". Add `--watch` to keep printing angles while you
+move joints by hand.
+
+- **`MISMATCH`**: the servos hold a different calibration than the file. LeRobot writes
+  the calibration of whichever id it last connected with into the servos, so this usually
+  means the arm was last used under another id. The tool searches the file's directory
+  and prints the file that matches; use it (`follower_id:=<that name>` in the launch),
+  or connect once with LeRobot under the id you want so it writes that file to the servos.
+- **`OUTSIDE`**: the joint is too far past its limits for the plugin to enable torque
+  (for example a gripper opened past its calibrated range). Move it in by hand.
 
 **2. Check directions in RViz (torque off).**
 ```bash

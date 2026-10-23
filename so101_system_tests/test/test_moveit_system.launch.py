@@ -23,7 +23,8 @@ interfaces only, the tests check that:
 4. an arm goal outside the joint limits never moves a joint past its limit
    (it is either rejected with no motion, or clamped to the limit by MoveIt);
 5. a trajectory sent straight to arm_controller, bypassing MoveIt, is clamped
-   to the URDF limits by the controller manager (enforce_command_limits).
+   to the URDF limits: by the controller manager (enforce_command_limits) on
+   fake hardware, by so101_hardware itself on the servo backends.
 
 Target joint values come from the installed SRDF and limits from
 /robot_description, so the tests follow the robot config rather than

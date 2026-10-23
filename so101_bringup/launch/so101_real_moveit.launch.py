@@ -24,9 +24,13 @@ import os
 from launch import LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument,
+    EmitEvent,
     IncludeLaunchDescription,
     OpaqueFunction,
+    RegisterEventHandler,
 )
+from launch.event_handlers import OnProcessExit
+from launch.events import Shutdown
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
@@ -91,7 +95,14 @@ def launch_setup(context):
     ros2_control_node = Node(
         package='controller_manager',
         executable='ros2_control_node',
-        parameters=[os.path.join(pkg_moveit, 'config', robot_name, 'ros2_controllers.yaml')],
+        parameters=[
+            os.path.join(pkg_moveit, 'config', robot_name, 'ros2_controllers.yaml'),
+            # so101_hardware clamps commands to the URDF limits and the calibrated
+            # range itself. The controller manager's limiter would instead stop
+            # every controller when a joint reads past a URDF limit, which the
+            # real arm does in its folded rest pose.
+            {'enforce_command_limits': False},
+        ],
         remappings=[('~/robot_description', '/robot_description')],
         output='screen',
     )
@@ -116,9 +127,18 @@ def launch_setup(context):
         launch_arguments={**hardware_args, 'use_rviz': use_rviz}.items(),
     )
 
-    if read_only == 'true':
-        return [robot_state_publisher, ros2_control_node, controller_spawner]
-    return [robot_state_publisher, ros2_control_node, controller_spawner, move_group]
+    # Without the hardware nothing else is useful; stop instead of leaving
+    # move_group and RViz running against a dead controller manager.
+    shutdown_without_hardware = RegisterEventHandler(OnProcessExit(
+        target_action=ros2_control_node,
+        on_exit=[EmitEvent(event=Shutdown(
+            reason='ros2_control_node exited; see its errors above'))],
+    ))
+    actions = [robot_state_publisher, ros2_control_node, controller_spawner,
+               shutdown_without_hardware]
+    if read_only != 'true':
+        actions.append(move_group)
+    return actions
 
 
 def generate_launch_description():

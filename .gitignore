@@ -48,7 +48,6 @@ ENV/
 devel_isolated/
 
 # Package dependencies
-src/
 node_modules/
 
 # Temporary and local files

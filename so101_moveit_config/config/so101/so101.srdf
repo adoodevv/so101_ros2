@@ -1,4 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Assumes the robot description was generated with an empty `prefix`
+  (the default). Joint and link names here, and in the other YAML files in
+  this directory, are unprefixed.
+-->
 <robot name="so101">
     <virtual_joint name="virtual_joint" type="fixed" parent_frame="world" child_link="base_link"/>
 

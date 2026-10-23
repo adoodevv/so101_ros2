@@ -29,7 +29,7 @@
             </xacro:if>
         </xacro:macro>
 
-        <ros2_control name="RobotSystem" type="system">
+        <ros2_control name="${prefix}RobotSystem" type="system">
             <hardware>
                 <xacro:if value="${use_gazebo}">
                     <plugin>gz_ros2_control/GazeboSimSystem</plugin>

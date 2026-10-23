@@ -7,10 +7,11 @@ It processes the URDF/XACRO model and generates ros2_control configuration when
 simulation support is enabled.
 """
 import os
-from pathlib import Path
+import tempfile
 
+from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, OpaqueFunction
+from launch.actions import DeclareLaunchArgument, OpaqueFunction, SetLaunchConfiguration
 from launch.conditions import IfCondition
 from launch.substitutions import Command, LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
@@ -19,43 +20,34 @@ from launch_ros.substitutions import FindPackageShare
 
 
 def process_ros2_controllers_config(context):
-    """Process the ROS 2 controller configuration yaml file before loading the URDF."""
+    """
+    Render a prefixed ros2_control controller config for Gazebo, if needed.
+
+    With an empty prefix gz_ros2_control uses the installed
+    so101_moveit_config/config/<robot_name>/ros2_controllers.yaml. With a
+    prefix, ros2_controllers_template.yaml is rendered to a temporary file
+    and passed to xacro as `controllers_file`; nothing is written into the
+    source or install trees.
+    """
     prefix = LaunchConfiguration('prefix').perform(context)
     robot_name = LaunchConfiguration('robot_name').perform(context)
     use_gazebo = LaunchConfiguration('use_gazebo').perform(context)
 
-    if use_gazebo != 'true':
+    if use_gazebo != 'true' or not prefix:
         return []
 
-    home = str(Path.home())
-
-    src_config_path = os.path.join(
-        home,
-        'ros2_ws/src/so101_ros2/so101_moveit_config/config',
-        robot_name
-    )
-    install_config_path = os.path.join(
-        home,
-        'ros2_ws/install/so101_moveit_config/share/so101_moveit_config/config',
-        robot_name
-    )
-
-    template_path = os.path.join(src_config_path, 'ros2_controllers_template.yaml')
-    if not os.path.isfile(template_path):
-        return []
-
+    template_path = os.path.join(
+        get_package_share_directory('so101_moveit_config'),
+        'config', robot_name, 'ros2_controllers_template.yaml')
     with open(template_path, 'r', encoding='utf-8') as file:
-        template_content = file.read()
+        processed_content = file.read().replace('${prefix}', prefix)
 
-    processed_content = template_content.replace('${prefix}', prefix)
+    with tempfile.NamedTemporaryFile(
+            'w', encoding='utf-8', prefix=f'{prefix}{robot_name}_ros2_controllers_',
+            suffix='.yaml', delete=False) as file:
+        file.write(processed_content)
 
-    for config_path in [src_config_path, install_config_path]:
-        os.makedirs(config_path, exist_ok=True)
-        output_path = os.path.join(config_path, 'ros2_controllers.yaml')
-        with open(output_path, 'w', encoding='utf-8') as file:
-            file.write(processed_content)
-
-    return []
+    return [SetLaunchConfiguration('controllers_file', file.name)]
 
 
 ARGUMENTS = [
@@ -133,6 +125,7 @@ def generate_launch_description():
         'prefix:=', LaunchConfiguration('prefix'), ' ',
         'use_gazebo:=', LaunchConfiguration('use_gazebo'), ' ',
         'use_fake_hardware:=', LaunchConfiguration('use_fake_hardware'), ' ',
+        'controllers_file:=', LaunchConfiguration('controllers_file', default=''), ' ',
         'use_camera:=', LaunchConfiguration('use_camera')
     ]), value_type=str)
 

@@ -10,6 +10,7 @@
 #include <map>
 #include <set>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "hardware_interface/types/hardware_interface_type_values.hpp"
@@ -182,6 +183,7 @@ CallbackReturn SO101SystemHardware::on_init(
       joint.max_torque_limit = int_param(info.parameters, "max_torque_limit", -1);
       joint.protection_current = int_param(info.parameters, "protection_current", -1);
       joint.overload_torque = int_param(info.parameters, "overload_torque", -1);
+      joint.p_coefficient = int_param(info.parameters, "p_coefficient", p_coefficient_);
       const double a = joint.mapping->ticks_to_position(joint.calibration.range_min);
       const double b = joint.mapping->ticks_to_position(joint.calibration.range_max);
       joint.lower = std::min(a, b);
@@ -298,12 +300,22 @@ bool SO101SystemHardware::write_if_different(
   }
   RCLCPP_INFO(get_logger(), "Servo %d (%s): register %d %u -> %u", joint.id, joint.name.c_str(),
     r.address, current, value);
-  if (!bus_->write(joint.id, r, value)) {
-    RCLCPP_ERROR(get_logger(), "Servo %d (%s): write of register %d failed: %s", joint.id,
-      joint.name.c_str(), r.address, bus_->last_error().c_str());
-    return false;
+  // An EEPROM write can take longer than the reply timeout: the servo then
+  // misses its status reply (seen on the physical arm). Read the register
+  // back, and write again only if the value did not stick.
+  constexpr int kWriteAttempts = 3;
+  for (int attempt = 1; attempt <= kWriteAttempts; ++attempt) {
+    const bool written = bus_->write(joint.id, r, value);
+    if (!written) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
+    if (bus_->read(joint.id, r, &current) && current == value) {
+      return true;
+    }
   }
-  return true;
+  RCLCPP_ERROR(get_logger(), "Servo %d (%s): write of register %d failed after %d attempts: %s",
+    joint.id, joint.name.c_str(), r.address, kWriteAttempts, bus_->last_error().c_str());
+  return false;
 }
 
 bool SO101SystemHardware::apply_servo_settings()
@@ -325,7 +337,7 @@ bool SO101SystemHardware::apply_servo_settings()
       // Phase bit 4 off keeps Present_Position in [0, 4095].
       write_if_different(joint, reg::kPhase, phase & ~0x10u, &torque_disabled) &&
       write_if_different(joint, reg::kOperatingMode, 0, &torque_disabled) &&
-      write_if_different(joint, reg::kPCoefficient, p_coefficient_, &torque_disabled) &&
+      write_if_different(joint, reg::kPCoefficient, joint.p_coefficient, &torque_disabled) &&
       write_if_different(joint, reg::kICoefficient, i_coefficient_, &torque_disabled) &&
       write_if_different(joint, reg::kDCoefficient, d_coefficient_, &torque_disabled);
     if (ok && joint.max_torque_limit >= 0) {

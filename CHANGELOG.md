@@ -33,9 +33,16 @@ package in the repository.
 - `so101_hardware_check` names the calibration file that matches the servos on a
   mismatch, and flags joints outside their limits.
 - `so101_servo_sim --start JOINT=TICKS` sets initial positions.
+- Servo P gain 32 (factory) on the real arm instead of LeRobot's 16: gravity
+  sag on the physical arm measured 0.107 → 0.048 rad (elbow_flex at home).
+  Per-joint `p_coefficient` override.
+- SRDF `rest` pose (folded); the system tests end there so the physical arm
+  is resting when the motors switch off.
 
 ### Fixed
 
+- EEPROM writes are read back and retried: an EEPROM write can outlast the
+  reply timeout, which made configure fail on the physical arm.
 - `.gitignore` ignored every `src/` directory, so `so101_hardware/src` was
   never committed.
 - Bringup launches opened an empty RViz: `robot_state_publisher.launch.py`'s

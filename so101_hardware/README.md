@@ -123,10 +123,15 @@ Set in `so101_description/urdf/control/so101_ros2_control.urdf.xacro` (`use_real
 | `configure_servos` | `true` | apply LeRobot's servo settings on configure |
 | `disable_torque_on_deactivate` | `true` | |
 | `read_only` | `false` | never enable torque |
-| `p_coefficient`, `i_coefficient`, `d_coefficient` | `16`, `0`, `32` | servo position PID (LeRobot defaults) |
+| `p_coefficient`, `i_coefficient`, `d_coefficient` | `16`, `0`, `32` | servo position PID (LeRobot defaults). The description sets `p_coefficient` to 32 (factory): it halves the gravity sag, measured 0.107 → 0.048 rad on `elbow_flex` at `home`. |
 
 Joint parameters: `motor` (calibration key), `mapping` (`centered` or `linear`),
-`max_torque_limit`, `protection_current`, `overload_torque`.
+`max_torque_limit`, `protection_current`, `overload_torque`, `p_coefficient` (overrides
+the hardware value for one servo).
+
+**Accuracy.** A position servo sags under load in proportion to the load: about 0.05 rad
+at 25 % load with P=32. LeRobot's tools write P=16 back when they connect; the plugin
+writes 32 again on its next start (an EEPROM write, done with torque off).
 
 ## Tests
 

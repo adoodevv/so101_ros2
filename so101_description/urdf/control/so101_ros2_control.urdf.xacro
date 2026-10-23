@@ -64,6 +64,11 @@
                     <param name="baud_rate">${baud_rate}</param>
                     <param name="calibration_file">${calibration_file}</param>
                     <param name="read_only">${read_only}</param>
+                    <!-- Servo P gain: the factory 32, not LeRobot's 16. LeRobot lowers
+                         it against shaking under teleoperation; MoveIt sends smooth
+                         trajectories, and 32 halves the gravity sag (elbow_flex at
+                         home: 0.107 rad at 16, 0.048 rad at 32, measured). -->
+                    <param name="p_coefficient">32</param>
                 </xacro:if>
             </hardware>
 

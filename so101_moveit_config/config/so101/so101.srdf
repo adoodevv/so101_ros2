@@ -43,6 +43,17 @@
         <joint name="wrist_roll" value="0"/>
     </group_state>
 
+    <!-- rest: folded as the physical arm sits when powered off, just inside the
+         joint limits (shoulder_lift and elbow_flex rest on their stops a little
+         past them). Move here before switching the motors off. -->
+    <group_state name="rest" group="arm">
+        <joint name="shoulder_pan" value="0"/>
+        <joint name="shoulder_lift" value="-1.7"/>
+        <joint name="elbow_flex" value="1.6"/>
+        <joint name="wrist_flex" value="1.35"/>
+        <joint name="wrist_roll" value="0"/>
+    </group_state>
+
     <group_state name="open" group="gripper">
         <joint name="gripper" value="1.5"/>
     </group_state>

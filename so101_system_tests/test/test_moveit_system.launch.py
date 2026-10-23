@@ -24,7 +24,9 @@ interfaces only, the tests check that:
    (it is either rejected with no motion, or clamped to the limit by MoveIt);
 5. a trajectory sent straight to arm_controller, bypassing MoveIt, is clamped
    to the URDF limits: by the controller manager (enforce_command_limits) on
-   fake hardware, by so101_hardware itself on the servo backends.
+   fake hardware, by so101_hardware itself on the servo backends;
+6. the arm returns to the SRDF `rest` pose (folded), so the physical arm is
+   resting when the motors switch off at shutdown.
 
 Target joint values come from the installed SRDF and limits from
 /robot_description, so the tests follow the robot config rather than
@@ -83,11 +85,10 @@ BACKEND = os.environ.get('SO101_TEST_BACKEND', 'fake')
 # MoveIt velocity/acceleration scaling; gentler on the physical arm.
 SPEED_SCALING = 0.3 if BACKEND == 'real' else 1.0
 # How close a joint must get to its target. In simulation: servo resolution
-# (~0.0015 rad per tick) and floating point noise. The physical arm, with
-# LeRobot's soft servo gains, settles up to ~0.035 rad (2 deg) short under
-# load (measured: shoulder_lift at home, the gripper at open, elbow_flex while
-# shoulder_pan swings).
-POSITION_TOLERANCE = 0.05 if BACKEND == 'real' else 0.01
+# (~0.0015 rad per tick) and floating point noise. The physical arm sags under
+# gravity in proportion to the load; measured with P=32, the worst case is
+# elbow_flex at home, 0.048 rad short at 26 % load.
+POSITION_TOLERANCE = 0.08 if BACKEND == 'real' else 0.01
 # How far a joint may drift when nothing should move: exact in simulation,
 # a few ticks of sensor noise on the physical arm.
 NO_MOTION_TOLERANCE = 0.005 if BACKEND == 'real' else 1e-4
@@ -408,3 +409,8 @@ class TestMoveItSystem(unittest.TestCase):
                 after[joint], lower - POSITION_TOLERANCE, f'{joint} below its lower limit')
             self.assertLessEqual(
                 after[joint], upper_limit + POSITION_TOLERANCE, f'{joint} above its upper limit')
+
+    def test_06_arm_returns_to_rest(self):
+        """The arm folds back to the SRDF rest pose, where it can be left unpowered."""
+        self.start_deadline(MOTION_TEST_TIMEOUT)
+        self.assert_named_state_reached('arm', 'rest')

@@ -40,6 +40,7 @@ namespace so101_hardware
 //                     calibrated range onto the command interface min/max
 //   max_torque_limit, protection_current, overload_torque  optional servo
 //                     protection settings (LeRobot sets them on the gripper)
+//   p_coefficient     optional per-joint override of the hardware P gain
 //
 // Interfaces: command "position"; state "position" (required) and optionally
 // "velocity", "load" (fraction of max torque, -1..1), "temperature" (deg C),
@@ -84,6 +85,7 @@ private:
     int max_torque_limit = -1;
     int protection_current = -1;
     int overload_torque = -1;
+    int p_coefficient = -1;
     int last_ticks = 0;
     // Commands are clamped to [lower, upper]: the URDF limits (less a small
     // margin) intersected with the calibrated range, so the plugin enforces

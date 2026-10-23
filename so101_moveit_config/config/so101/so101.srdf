@@ -7,12 +7,10 @@
 <robot name="so101">
     <virtual_joint name="virtual_joint" type="fixed" parent_frame="world" child_link="base_link"/>
 
+    <!-- Chain to the tool frame, so gripper_frame_link is the arm's tip (IK and
+         RViz interactive marker) and the parent link of the gripper end-effector. -->
     <group name="arm">
-        <joint name="shoulder_pan"/>
-        <joint name="shoulder_lift"/>
-        <joint name="elbow_flex"/>
-        <joint name="wrist_flex"/>
-        <joint name="wrist_roll"/>
+        <chain base_link="base_link" tip_link="gripper_frame_link"/>
     </group>
 
     <group name="gripper">
@@ -24,7 +22,7 @@
         <group name="gripper"/>
     </group>
 
-    <end_effector name="gripper" parent_link="gripper_frame_link" group="gripper"/>
+    <end_effector name="gripper" parent_link="gripper_frame_link" group="gripper" parent_group="arm"/>
 
     <group_state name="home" group="arm">
         <joint name="shoulder_pan" value="0"/>

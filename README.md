@@ -48,7 +48,7 @@ ROS 2 stack for the [SO-101](https://github.com/TheRobotStudio/SO-ARM100) robot 
 - [x] Hardware interface for the real arm (ros2_control plugin, tested end to end against simulated servos)
 - [x] Hardware interface validated on the physical arm: system tests pass on the follower (`SO101_TEST_BACKEND=real`, [first-run procedure](so101_hardware/README.md#first-run-on-your-arm))
 - [x] Leader-arm teleoperation (`so101_leader` + streaming position controllers, tested end to end on simulated servos)
-- [ ] Teleoperation validated on the physical arms
+- [x] Teleoperation validated on the physical arms (leader driving the follower)
 - [ ] Prefix-aware MoveIt / controller configuration (currently assumes an empty prefix)
 
 ## Prerequisites

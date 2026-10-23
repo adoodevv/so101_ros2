@@ -41,6 +41,7 @@ ROS 2 stack for the [SO-101](https://github.com/TheRobotStudio/SO-ARM100) robot 
 - [x] Fake hardware (`mock_components`) + MoveIt bringup, headless, no Gazebo
 - [x] Mountable description (`parent` / `xyz` / `rpy`, `prefix` on every link and joint)
 - [x] Automated system tests on fake hardware (controllers, named states, gripper, joint limits)
+- [x] Joint limits enforced by the controller manager for every command source
 - [ ] Hardware interface (real robot)
 - [ ] Prefix-aware MoveIt / controller configuration (currently assumes an empty prefix)
 

@@ -20,10 +20,13 @@ package in the repository.
   and no `world` link. `so101.urdf.xacro` exposes them as xacro args.
 - **System tests** (`so101_system_tests`, `launch_testing`, headless): controllers
   active; arm to SRDF `home` then `ready`; gripper `open` → `closed` → `open`;
-  out-of-limits arm goal never drives a joint past its limit.
+  out-of-limits arm goal never drives a joint past its limit; a trajectory sent
+  straight to `arm_controller` past the limit is clamped.
 - `NOTICE.md` crediting TheRobotStudio/SO-ARM100 (Apache-2.0) for meshes and
   URDF data.
-- `LICENSE` in `so101_teleop_bridge`.
+- `LICENSE` in `so101_teleop_bridge`; the upstream Apache-2.0 text next to the
+  SO-ARM100 meshes (`so101_description/meshes/so_arm101/LICENSE`).
+- `controllers_file` xacro arg for the Gazebo ros2_control plugin.
 
 ### Changed
 
@@ -36,6 +39,23 @@ package in the repository.
   unused `velocity`/`effort` interfaces remain in Gazebo (simulated effort,
   not force sensing).
 - `so101_teleop_bridge` license declared as BSD-3-Clause.
+- **Joint limits enforced for every command:** `enforce_command_limits: true`
+  in `ros2_controllers.yaml`. Commands from any source (MoveIt, controller
+  topics/actions, teleop) are clamped to the URDF limits, in fake hardware and
+  Gazebo alike.
+- **SRDF `ready` redefined** to `shoulder_lift -0.7, elbow_flex 0.6,
+  wrist_flex 1.4` (tool pointing down ~0.19 m in front of the base). The old
+  pose folded the gripper back onto the shoulder and only passed collision
+  checking because the jaw mesh was buried inside the shoulder mesh. The new
+  pose keeps >= 0.15 rad of clearance from self-collision and plans first time.
+- SRDF `arm` group is a chain `base_link` -> `gripper_frame_link`, so the tool
+  frame is the IK tip and the gripper end-effector has a parent group;
+  `arm_with_gripper` no longer has a (non-functional) KDL solver.
+- `move_group` only requests `ExecuteTaskSolutionCapability` when MoveIt Task
+  Constructor is installed.
+- `robot_state_publisher.launch.py` no longer writes `ros2_controllers.yaml`
+  into `~/ros2_ws/src` and `~/ros2_ws/install`; prefixed Gazebo runs render the
+  template to a temporary file instead.
 - Package versions set to 0.2.0.
 
 ### Fixed
@@ -45,15 +65,21 @@ package in the repository.
   with `/gripper_controller/commands`. Also corrected the MoveIt config README
   (MoveIt is configured), the `controller_load_delay` default and the Gazebo
   spawn `z` default.
+- MoveIt gripper planning in Gazebo: `closed` was an invalid goal and `open`
+  could not be planned, because the Gazebo jaw collision box touches
+  `wrist_link` below ~0.25 rad. The pair never touches with the real meshes
+  over the full `wrist_roll` x `gripper` range and is now disabled in the SRDF.
+- Pre-existing lint failures (lint_cmake, flake8, pep257); `colcon test` passes
+  for every package.
 
 ### Known issues
 
 - The MoveIt configuration (SRDF and YAMLs) assumes an empty `prefix`.
-- The SRDF `ready` pose is about 0.03 rad from a moving-jaw/shoulder
-  self-collision; MoveIt rejects a share of OMPL paths into it after time
-  parameterization and has to re-plan.
 - MoveIt clamps out-of-bounds joint goals to the limit rather than rejecting
-  them. Direct controller commands are not limited on fake hardware
-  (`enforce_command_limits` is off).
-- `move_group.launch.py` requests the `move_group/ExecuteTaskSolutionCapability`
-  capability, which logs an error when MoveIt Task Constructor is not installed.
+  them; with limit enforcement the arm stops at the limit.
+- `move_group` (MoveIt 2.12) segfaults in `rclcpp::Executor::~Executor()` as it
+  exits, after all work has stopped. backward-cpp then symbolizes the stack
+  trace, which can take longer than launch's 5 s SIGINT grace period on slower
+  machines, so launch escalates to SIGTERM. Harmless; upstream issue.
+- `ament_xmllint` downloads the `package.xml` schema from download.ros.org, so
+  it can fail without network access.

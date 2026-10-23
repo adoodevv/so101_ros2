@@ -28,11 +28,13 @@ namespace
 constexpr char kLoad[] = "load";
 constexpr char kTemperature[] = "temperature";
 constexpr char kVoltage[] = "voltage";
-// write() clamps commands to each joint's limits, so a joint resting outside
-// them is driven to the limit as soon as torque comes on. A small overshoot
-// (the folded rest pose sits a few degrees past shoulder_lift's URDF limit) is
-// accepted with a warning; a larger one is refused.
-constexpr double kActivationLimitTolerance = 0.1;  // rad
+// write() clamps commands to each joint's limits. A joint resting outside them
+// when torque comes on is eased in at kEaseInSpeed rather than snapped: the
+// folded rest pose sits on shoulder_lift's mechanical stop, up to ~0.15 rad
+// past its limits. Further out than kActivationLimitTolerance (a joint moved
+// past its calibrated range by hand) activation is refused.
+constexpr double kActivationLimitTolerance = 0.25;  // rad
+constexpr double kEaseInSpeed = 0.2;  // rad/s
 // Commands stop this far inside the URDF limits. MoveIt refuses to plan from a
 // start state even one tick past a limit, and with LeRobot's soft gains a
 // loaded servo settles short of its goal: ~9 ticks (0.014 rad) measured on
@@ -434,22 +436,23 @@ CallbackReturn SO101SystemHardware::on_activate(const rclcpp_lifecycle::State &)
     return CallbackReturn::ERROR;
   }
   bool outside_limits = false;
-  for (const auto & joint : joints_) {
+  for (auto & joint : joints_) {
     const double position = get_state(joint.name + "/" + hardware_interface::HW_IF_POSITION);
     const double lower = joint.lower;
     const double upper = joint.upper;
     const double excess = std::max(lower - position, position - upper);
     if (excess > kActivationLimitTolerance) {
       RCLCPP_ERROR(
-        get_logger(), "%s is at %.3f rad, outside its limits [%.3f, %.3f]: torque would snap "
-        "it to the limit. Move it inside by hand and relaunch.", joint.name.c_str(),
-        position, lower, upper);
+        get_logger(), "%s is at %.3f rad, %.3f rad outside its limits [%.3f, %.3f]. Move it "
+        "inside by hand and relaunch.", joint.name.c_str(), position, excess, lower, upper);
       outside_limits = true;
     } else if (excess > 0.0) {
       RCLCPP_WARN(
-        get_logger(), "%s is at %.3f rad, %.3f rad past its limits [%.3f, %.3f]; it will move "
-        "to the limit when torque comes on", joint.name.c_str(), position, excess, lower, upper);
+        get_logger(), "%s is at %.3f rad, %.3f rad past its limits [%.3f, %.3f]; easing it in "
+        "at %.1f rad/s", joint.name.c_str(), position, excess, lower, upper, kEaseInSpeed);
     }
+    joint.goal = position;
+    joint.easing_in = excess > 0.0;
   }
   if (outside_limits) {
     return CallbackReturn::ERROR;
@@ -521,19 +524,27 @@ return_type SO101SystemHardware::read(const rclcpp::Time &, const rclcpp::Durati
          return_type::ERROR : return_type::OK;
 }
 
-return_type SO101SystemHardware::write(const rclcpp::Time &, const rclcpp::Duration &)
+return_type SO101SystemHardware::write(const rclcpp::Time &, const rclcpp::Duration & period)
 {
   if (!torque_enabled_) {
     return return_type::OK;
   }
   std::vector<uint32_t> goals;
   goals.reserve(joints_.size());
-  for (const auto & joint : joints_) {
+  for (auto & joint : joints_) {
     const double command = get_command(joint.name + "/" + hardware_interface::HW_IF_POSITION);
-    const int ticks = std::isfinite(command) ?
-      joint.mapping->position_to_ticks(std::clamp(command, joint.lower, joint.upper)) :
-      joint.last_ticks;
-    goals.push_back(feetech::encode_sign_magnitude(ticks, feetech::kPositionSignBit));
+    if (std::isfinite(command)) {
+      const double target = std::clamp(command, joint.lower, joint.upper);
+      if (joint.easing_in) {
+        const double step = kEaseInSpeed * period.seconds();
+        joint.goal += std::clamp(target - joint.goal, -step, step);
+        joint.easing_in = joint.goal != target;
+      } else {
+        joint.goal = target;
+      }
+    }
+    goals.push_back(feetech::encode_sign_magnitude(
+      joint.mapping->position_to_ticks(joint.goal), feetech::kPositionSignBit));
   }
   if (!bus_->sync_write(reg::kGoalPosition, ids_, goals)) {
     RCLCPP_ERROR_THROTTLE(get_logger(), *get_clock(), 1000, "Servo write failed: %s",

@@ -32,6 +32,7 @@ duplicating it. The tests are numbered because they share one launched stack
 and run in order.
 """
 
+import json
 import os
 import tempfile
 import time
@@ -105,10 +106,17 @@ def generate_test_description():
             get_package_share_directory('so101_hardware'), 'config',
             'example_follower_calibration.json')
         port = os.path.join(tempfile.gettempdir(), f'so101_sim_port_{os.getpid()}')
+        # Start folded, as the arm rests: shoulder_lift on its stop and
+        # elbow_flex near its end, both past their URDF limits. The hardware
+        # must ease them in rather than refuse or snap.
+        with open(calibration, encoding='utf-8') as f:
+            ranges = json.load(f)
+        folded = [f"shoulder_lift={ranges['shoulder_lift']['range_min'] + 30}",
+                  f"elbow_flex={ranges['elbow_flex']['range_max'] - 15}"]
         sim = ExecuteProcess(
             cmd=[os.path.join(get_package_prefix('so101_hardware'), 'lib', 'so101_hardware',
                               'so101_servo_sim'),
-                 '--calibration', calibration, '--link', port],
+                 '--calibration', calibration, '--link', port, '--start', *folded],
             output='screen')
         robot = bringup_launch('so101_real_moveit.launch.py', {
             'port': port, 'calibration_file': calibration, 'use_rviz': 'false'})

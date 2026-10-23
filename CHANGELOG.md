@@ -27,8 +27,9 @@ package in the repository.
   with the calibrated range; arm joints held 0.03 rad inside, since a loaded
   servo settles ~10 ticks short of its goal) and the launch disables the
   controller manager's `enforce_command_limits`, which stopped every controller
-  when the arm rested past a URDF limit. Activation moves a joint up to 0.1 rad
-  outside its limits back to the limit, and refuses beyond that.
+  when the arm rested past a URDF limit. A joint up to 0.25 rad outside its
+  limits at activation is eased in at 0.2 rad/s; beyond that activation is
+  refused.
 - `so101_hardware_check` names the calibration file that matches the servos on a
   mismatch, and flags joints outside their limits.
 - `so101_servo_sim --start JOINT=TICKS` sets initial positions.

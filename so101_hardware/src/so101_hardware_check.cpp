@@ -45,7 +45,7 @@ const std::map<std::string, std::pair<double, double>> kLimits = {
   {"shoulder_pan", {-1.91986, 1.91986}}, {"shoulder_lift", {-1.74533, 1.74533}},
   {"elbow_flex", {-1.69, 1.69}}, {"wrist_flex", {-1.65806, 1.65806}},
   {"wrist_roll", {-2.74385, 2.84121}}, {"gripper", {kGripperClosed, kGripperOpen}}};
-constexpr double kActivationLimitTolerance = 0.1;
+constexpr double kActivationLimitTolerance = 0.25;
 
 struct ServoCalibration
 {
@@ -215,7 +215,7 @@ int main(int argc, char ** argv)
       const double upper = std::min(std::max(a, b), kLimits.at(name).second);
       const double excess = std::max(lower - position, position - upper);
       const char * limit = excess <= 0.0 ? "ok" :
-        excess <= kActivationLimitTolerance ? "slightly outside (moves to limit on start)" :
+        excess <= kActivationLimitTolerance ? "past limits (eased in on start)" :
         "OUTSIDE: move it in by hand";
       std::printf("%-14s %6d %9.4f %8.2f %7.1f %6d  %s\n", name.c_str(), ticks, position,
         position * 180.0 / M_PI, d[6] / 10.0, d[7], limit);

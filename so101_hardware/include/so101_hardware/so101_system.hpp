@@ -90,6 +90,10 @@ private:
     // the limits itself.
     double lower = 0.0;
     double upper = 0.0;
+    // Set when the joint starts outside [lower, upper]: its goal then moves
+    // in at kEaseInSpeed instead of jumping, until it reaches the command.
+    bool easing_in = false;
+    double goal = 0.0;
   };
 
   bool open_bus();

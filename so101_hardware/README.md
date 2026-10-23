@@ -36,7 +36,7 @@ past a URDF limit, and the real arm's folded rest pose is a few degrees past
 
 **Lifecycle:**
 - **configure:** opens the port and checks every servo (ping, model, calibration). It then applies LeRobot's connect-time settings: PID 16/0/32, acceleration 254, return delay 0, and 50 % torque/current limits on the gripper. Only registers that differ are written; on an arm already used with LeRobot, nothing is.
-- **activate:** reads the pose, sets the goal to it, *then* enables torque. The arm holds where it is and does not jump. A joint resting up to 0.1 rad outside its limits is moved to the limit (with a warning; the folded `shoulder_lift` does this, about 2°). Further out, activation is refused and the launch stops: move the joint inside by hand and relaunch.
+- **activate:** reads the pose, sets the goal to it, *then* enables torque. The arm holds where it is and does not jump. A joint resting up to 0.25 rad outside its limits is eased in at 0.2 rad/s (with a warning; the folded `shoulder_lift` rests on its stop, up to ~0.15 rad outside). Further out, activation is refused: move the joint inside by hand and relaunch.
 - **deactivate:** torque off, so the arm goes limp. Support it if it is raised.
 - **communication error:** after `max_consecutive_read_errors` failed reads, the hardware goes to error and torque is left as it is, so the servos keep holding their last goal.
 
@@ -58,7 +58,7 @@ use the stable path under `/dev/serial/by-id/` (`ls -l /dev/serial/by-id/`) as `
 ros2 run so101_hardware so101_hardware_check --port /dev/ttyACM0 \
   --calibration ~/.cache/huggingface/lerobot/calibration/robots/so_follower/my_follower.json
 ```
-You want six `ok` / `matches` rows, `ok` (or "slightly outside") in the `limits` column,
+You want six `ok` / `matches` rows, `ok` (or "past limits (eased in on start)") in the `limits` column,
 and "All servos present and calibrated". Add `--watch` to keep printing angles while you
 move joints by hand.
 

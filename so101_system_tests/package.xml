@@ -2,15 +2,30 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>so101_system_tests</name>
-  <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <version>0.2.0</version>
+  <description>End-to-end system tests for the SO-101 stack on fake (mock) hardware</description>
   <maintainer email="adoojonathan412@gmail.com">adoodevv</maintainer>
   <license>BSD-3-Clause</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
+  <test_depend>ament_index_python</test_depend>
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
+  <test_depend>builtin_interfaces</test_depend>
+  <test_depend>control_msgs</test_depend>
+  <test_depend>controller_manager_msgs</test_depend>
+  <test_depend>launch</test_depend>
+  <test_depend>launch_testing</test_depend>
+  <test_depend>launch_testing_ament_cmake</test_depend>
+  <test_depend>moveit_msgs</test_depend>
+  <test_depend>python3-pytest</test_depend>
+  <test_depend>rclpy</test_depend>
+  <test_depend>sensor_msgs</test_depend>
+  <test_depend>so101_bringup</test_depend>
+  <test_depend>so101_moveit_config</test_depend>
+  <test_depend>std_msgs</test_depend>
+  <test_depend>trajectory_msgs</test_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

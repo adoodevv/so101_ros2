@@ -1,11 +1,42 @@
 <?xml version="1.0" ?>
 <robot xmlns:xacro="http://wiki.ros.org/xacro">
 
-    <xacro:macro name="so101_ros2_control" params="prefix use_gazebo">
-        <ros2_control name="RobotSystem" type="system">
+    <!--
+      Hardware backend (at most one may be true):
+        use_gazebo        -> gz_ros2_control/GazeboSimSystem (Gazebo Harmonic)
+        use_fake_hardware -> mock_components/GenericSystem (headless, no physics)
+      initial_positions_file: YAML with an `initial_positions` map keyed by
+        unprefixed joint name. Only read when use_fake_hardware is true; empty
+        means so101_moveit_config/config/so101/initial_positions.yaml.
+    -->
+    <xacro:macro name="so101_ros2_control"
+                 params="prefix use_gazebo use_fake_hardware:=false initial_positions_file:=''">
+        <xacro:if value="${use_gazebo and use_fake_hardware}">
+            ${xacro.fatal('so101_ros2_control: use_gazebo and use_fake_hardware cannot both be true')}
+        </xacro:if>
+
+        <xacro:if value="${use_fake_hardware}">
+            <xacro:property name="default_initial_positions_file"
+                            value="$(find so101_moveit_config)/config/so101/initial_positions.yaml"/>
+            <xacro:property name="initial_positions"
+                            value="${xacro.load_yaml(initial_positions_file or default_initial_positions_file)['initial_positions']}"/>
+        </xacro:if>
+
+        <!-- Adds an initial_value to a state interface; fake hardware only. -->
+        <xacro:macro name="initial_value" params="joint">
+            <xacro:if value="${use_fake_hardware}">
+                <param name="initial_value">${initial_positions[joint]}</param>
+            </xacro:if>
+        </xacro:macro>
+
+        <ros2_control name="${prefix}RobotSystem" type="system">
             <hardware>
                 <xacro:if value="${use_gazebo}">
                     <plugin>gz_ros2_control/GazeboSimSystem</plugin>
+                </xacro:if>
+                <xacro:if value="${use_fake_hardware}">
+                    <plugin>mock_components/GenericSystem</plugin>
+                    <param name="calculate_dynamics">false</param>
                 </xacro:if>
             </hardware>
 
@@ -14,7 +45,9 @@
                     <param name="min">-1.91986</param>
                     <param name="max">1.91986</param>
                 </command_interface>
-                <state_interface name="position"/>
+                <state_interface name="position">
+                    <xacro:initial_value joint="shoulder_pan"/>
+                </state_interface>
             </joint>
 
             <joint name="${prefix}shoulder_lift">
@@ -22,7 +55,9 @@
                     <param name="min">-1.74533</param>
                     <param name="max">1.74533</param>
                 </command_interface>
-                <state_interface name="position"/>
+                <state_interface name="position">
+                    <xacro:initial_value joint="shoulder_lift"/>
+                </state_interface>
             </joint>
 
             <joint name="${prefix}elbow_flex">
@@ -30,7 +65,9 @@
                     <param name="min">-1.69</param>
                     <param name="max">1.69</param>
                 </command_interface>
-                <state_interface name="position"/>
+                <state_interface name="position">
+                    <xacro:initial_value joint="elbow_flex"/>
+                </state_interface>
             </joint>
 
             <joint name="${prefix}wrist_flex">
@@ -38,7 +75,9 @@
                     <param name="min">-1.65806</param>
                     <param name="max">1.65806</param>
                 </command_interface>
-                <state_interface name="position"/>
+                <state_interface name="position">
+                    <xacro:initial_value joint="wrist_flex"/>
+                </state_interface>
             </joint>
 
             <joint name="${prefix}wrist_roll">
@@ -46,7 +85,9 @@
                     <param name="min">-2.74385</param>
                     <param name="max">2.84121</param>
                 </command_interface>
-                <state_interface name="position"/>
+                <state_interface name="position">
+                    <xacro:initial_value joint="wrist_roll"/>
+                </state_interface>
             </joint>
 
             <joint name="${prefix}gripper">
@@ -54,9 +95,18 @@
                     <param name="min">-0.174533</param>
                     <param name="max">1.74533</param>
                 </command_interface>
-                <state_interface name="position"/>
-                <state_interface name="velocity"/>
-                <state_interface name="effort"/>
+                <state_interface name="position">
+                    <xacro:initial_value joint="gripper"/>
+                </state_interface>
+                <!-- No controller uses these, and mock hardware would only echo
+                     zeros, so they are omitted with use_fake_hardware. They stay
+                     elsewhere so joint_state_broadcaster keeps publishing them in
+                     Gazebo. In Gazebo the effort is the simulated joint effort:
+                     it is not contact or grip-force sensing. -->
+                <xacro:unless value="${use_fake_hardware}">
+                    <state_interface name="velocity"/>
+                    <state_interface name="effort"/>
+                </xacro:unless>
             </joint>
 
         </ros2_control>

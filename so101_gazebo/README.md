@@ -42,7 +42,7 @@ This starts:
 | `use_camera` | `false` | Enable camera image bridges |
 | `spawn_delay` | `2.0` | Seconds before spawning the robot |
 | `controller_load_delay` | `5.0` | Seconds before loading controllers |
-| `x`, `y`, `z` | `0.0`, `0.0`, `0.05` | Robot spawn position |
+| `x`, `y`, `z` | `0.0`, `0.0`, `0.0` | Robot spawn position |
 | `roll`, `pitch`, `yaw` | `0.0` | Robot spawn orientation |
 
 ### Examples

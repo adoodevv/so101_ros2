@@ -7,12 +7,14 @@
   <img src="demo.gif" alt="SO-101 arm simulation demo" width="800"/>
 </p>
 
-ROS 2 stack for the [SO-101](https://github.com/TheRobotStudio/SO-ARM100) robot arm on **ROS 2 Jazzy**. Visualize the arm in RViz, run it in **Gazebo Harmonic**, and plan motions with **MoveIt 2**.
+ROS 2 stack for the [SO-101](https://github.com/TheRobotStudio/SO-ARM100) robot arm on **ROS 2 Jazzy**. Visualize the arm in RViz, run it in **Gazebo Harmonic** or headless on fake hardware, and plan motions with **MoveIt 2**.
 
 ## What you can do
 
 - **Visualize** the arm in RViz with interactive joint sliders (no simulation required)
 - **Simulate** the arm in Gazebo with ros2_control arm and gripper controllers
+- **Run headless** on fake hardware (`mock_components/GenericSystem`) with MoveIt, no Gazebo, for CI and integration
+- **Mount** the arm on another robot (`parent` link, pose, and a `prefix` applied to every name)
 - **Plan and execute** pick-and-place style motions in MoveIt 2 (OMPL, Pilz, STOMP)
 - **Bridge** an optional Intel RealSense D435 camera from Gazebo into ROS 2
 
@@ -24,8 +26,9 @@ ROS 2 stack for the [SO-101](https://github.com/TheRobotStudio/SO-ARM100) robot 
 | [so101_description](so101_description/) | URDF/xacro, meshes, RViz config |
 | [so101_moveit_config](so101_moveit_config/) | MoveIt 2 config, SRDF, planning pipelines, ros2_control controllers |
 | [so101_gazebo](so101_gazebo/) | Gazebo Harmonic simulation and worlds |
-| [so101_bringup](so101_bringup/) | Convenience launch scripts for Gazebo and MoveIt |
-| [so101_system_tests](so101_system_tests/) | System test scripts (planned) |
+| [so101_bringup](so101_bringup/) | Launch files for Gazebo + MoveIt and fake hardware + MoveIt |
+| [so101_system_tests](so101_system_tests/) | Headless end-to-end tests on fake hardware (`launch_testing`) |
+| [so101_teleop_bridge](so101_teleop_bridge/) | Publishes a physical SO-101 leader arm's joints on `/joint_states` |
 
 ## Status
 
@@ -35,8 +38,12 @@ ROS 2 stack for the [SO-101](https://github.com/TheRobotStudio/SO-ARM100) robot 
 - [x] Gazebo simulation with pick-and-place world
 - [x] Arm and gripper control in simulation
 - [x] MoveIt 2 motion planning (SRDF, move_group, OMPL / Pilz / STOMP)
+- [x] Fake hardware (`mock_components`) + MoveIt bringup, headless, no Gazebo
+- [x] Mountable description (`parent` / `xyz` / `rpy`, `prefix` on every link and joint)
+- [x] Automated system tests on fake hardware (controllers, named states, gripper, joint limits)
+- [x] Joint limits enforced by the controller manager for every command source
 - [ ] Hardware interface (real robot)
-- [ ] System test scripts
+- [ ] Prefix-aware MoveIt / controller configuration (currently assumes an empty prefix)
 
 ## Prerequisites
 
@@ -115,6 +122,8 @@ Example — empty world, no RViz:
 ros2 launch so101_gazebo so101.gazebo.launch.py world_file:=empty.world use_rviz:=false
 ```
 
+> **Slow machine?** Gazebo, its GUI, camera rendering and RViz together are heavy; watch the real-time factor in the bottom-right of the Gazebo window. Dropping the extras helps most: `ros2 launch so101_gazebo so101.gazebo.launch.py world_file:=empty.world use_camera:=false use_rviz:=false`. Everything runs on simulation time, so a low real-time factor makes motions slow, not wrong.
+
 > **Note:** `pick_and_place.world` downloads models from [Gazebo Fuel](https://app.gazebosim.org) on first run. An internet connection is required once; models are cached locally afterward.
 
 ### 3. Gazebo + MoveIt 2 (recommended demo)
@@ -141,9 +150,48 @@ Give the stack ~15 seconds to start. In the MoveIt RViz window:
 
 Predefined poses (`home`, `ready`, `open`, `closed`) are available under the **Select Goal State** dropdown when a group is selected.
 
+### 4. Fake hardware (no Gazebo)
+
+Runs the same controllers and MoveIt `move_group` against `mock_components/GenericSystem`: commanded positions are mirrored straight back as joint states. There is no physics, no Gazebo and no display needed, so it runs headless (CI, containers, integration into a larger robot stack).
+
+```bash
+ros2 launch so101_bringup so101_fake_moveit.launch.py
+```
+
+This starts `robot_state_publisher`, `ros2_control_node` (with `so101_moveit_config/config/so101/ros2_controllers.yaml`), spawners for `joint_state_broadcaster`, `arm_controller` and `gripper_controller`, and `move_group`. Initial joint values come from `so101_moveit_config/config/so101/initial_positions.yaml`.
+
+With the MoveIt RViz plugin:
+
+```bash
+ros2 launch so101_bringup so101_fake_moveit.launch.py use_rviz:=true
+```
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `use_rviz` | `false` | Start RViz with the MotionPlanning plugin |
+| `robot_name` | `so101` | Config directory under `so101_moveit_config/config` |
+
+Check that the controllers are active:
+
+```bash
+ros2 control list_controllers
+```
+
+Run the end-to-end system tests (they start this launch file themselves, headless, on `ROS_DOMAIN_ID=73`):
+
+```bash
+cd ~/ros2_ws
+colcon build --packages-up-to so101_system_tests
+source install/setup.bash
+colcon test --packages-select so101_system_tests
+colcon test-result --verbose --test-result-base build/so101_system_tests
+```
+
+To generate the fake-hardware URDF yourself, pass `use_fake_hardware:=true` to `robots/so101.urdf.xacro` (it cannot be combined with `use_gazebo:=true`). See [so101_description](so101_description/README.md#mounting-and-name-prefixes) for mounting the arm on another robot with `parent`, `xyz`, `rpy` and `prefix`.
+
 ## Control the arm manually
 
-After Gazebo is running and controllers are active, you can send trajectories directly (without MoveIt):
+After Gazebo or the fake-hardware stack is running and controllers are active, you can send trajectories directly (without MoveIt):
 
 **Move the arm:**
 
@@ -154,12 +202,27 @@ ros2 topic pub --once /arm_controller/joint_trajectory trajectory_msgs/msg/Joint
 }"
 ```
 
-**Open / close gripper** (range: -0.17 closed … 1.75 open):
+**Open / close gripper** (range: -0.17 closed … 1.75 open). The gripper runs a `joint_trajectory_controller/JointTrajectoryController`, driven through its `follow_joint_trajectory` action:
 
 ```bash
-ros2 topic pub --once /gripper_controller/commands std_msgs/msg/Float64MultiArray "{data: [1.5]}"
-ros2 topic pub --once /gripper_controller/commands std_msgs/msg/Float64MultiArray "{data: [-0.17]}"
+# Open
+ros2 action send_goal /gripper_controller/follow_joint_trajectory control_msgs/action/FollowJointTrajectory "{
+  trajectory: {
+    joint_names: ['gripper'],
+    points: [{positions: [1.5], time_from_start: {sec: 1, nanosec: 0}}]
+  }
+}"
+
+# Close
+ros2 action send_goal /gripper_controller/follow_joint_trajectory control_msgs/action/FollowJointTrajectory "{
+  trajectory: {
+    joint_names: ['gripper'],
+    points: [{positions: [-0.17], time_from_start: {sec: 1, nanosec: 0}}]
+  }
+}"
 ```
+
+A one-shot topic command also works: `ros2 topic pub --once /gripper_controller/joint_trajectory trajectory_msgs/msg/JointTrajectory "{joint_names: ['gripper'], points: [{positions: [1.5], time_from_start: {sec: 1}}]}"`.
 
 ## Robot joints
 
@@ -180,9 +243,6 @@ For launch arguments, controller details, and world descriptions, see the per-pa
 - [so101_gazebo](so101_gazebo/README.md)
 - [so101_moveit_config](so101_moveit_config/README.md)
 - [so101_bringup](so101_bringup/README.md)
+- [so101_system_tests](so101_system_tests/README.md)
 
-## Roadmap
-
-description → simulation → planning → **hardware control**
-
-Hardware drivers and automated system tests are the next milestones.
+Third-party material (SO-ARM100 meshes and URDF data, Apache-2.0) is listed in [NOTICE.md](NOTICE.md). Release notes are in [CHANGELOG.md](CHANGELOG.md).

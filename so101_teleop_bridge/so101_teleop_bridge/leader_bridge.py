@@ -1,9 +1,9 @@
 import math
+
+from lerobot.teleoperators.so_leader import SO101Leader, SO101LeaderConfig
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
-
-from lerobot.teleoperators.so_leader import SO101Leader, SO101LeaderConfig
 
 ALL_JOINTS = ['shoulder_pan', 'shoulder_lift', 'elbow_flex', 'wrist_flex', 'wrist_roll', 'gripper']
 

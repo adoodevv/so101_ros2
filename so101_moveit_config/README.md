@@ -1,16 +1,24 @@
 # so101_moveit_config
 
-ros2_control controller configuration for the SO-101 arm. Despite the package name, full MoveIt 2 planning (SRDF, `move_group`, OMPL pipelines) is not yet configured — this package currently provides the controller YAML and spawner launch file used by Gazebo simulation.
+MoveIt 2 and ros2_control configuration for the SO-101 arm: SRDF (planning groups `arm`, `gripper`, `arm_with_gripper` and named states), kinematics, joint limits, OMPL / Pilz / STOMP planning pipelines, the MoveIt controller mapping, and the ros2_control controller YAML.
 
 ## Contents
 
 ```
 so101_moveit_config/
-├── config/so101/
-│   ├── ros2_controllers_template.yaml   # Template with ${prefix} placeholders
-│   └── ros2_controllers.yaml            # Generated at launch time
-└── launch/
-    └── load_ros2_controllers.launch.py  # Sequential controller spawner
+├── config/
+│   ├── ompl_planning.yaml, pilz_industrial_motion_planner_planning.yaml, stomp_planning.yaml
+│   └── so101/
+│       ├── so101.srdf                       # Groups, named states, collision matrix
+│       ├── kinematics.yaml, joint_limits.yaml, pilz_cartesian_limits.yaml
+│       ├── initial_positions.yaml           # Start state (also fake-hardware initial values)
+│       ├── moveit_controllers.yaml          # MoveIt -> ros2_control action mapping
+│       ├── ros2_controllers_template.yaml   # ${prefix} template; rendered to a temp file for prefixed Gazebo runs
+│       └── ros2_controllers.yaml            # Controller config (empty prefix)
+├── launch/
+│   ├── move_group.launch.py                 # move_group + optional RViz
+│   └── load_ros2_controllers.launch.py      # Sequential controller loader (Gazebo)
+└── rviz/move_group.rviz
 ```
 
 ## Controllers
@@ -18,8 +26,8 @@ so101_moveit_config/
 | Controller | Type | Interface |
 |------------|------|-----------|
 | `joint_state_broadcaster` | `joint_state_broadcaster/JointStateBroadcaster` | Publishes `/joint_states` |
-| `arm_controller` | `joint_trajectory_controller/JointTrajectoryController` | `/arm_controller/joint_trajectory` |
-| `gripper_controller` | `forward_command_controller/ForwardCommandController` | `/gripper_controller/commands` |
+| `arm_controller` | `joint_trajectory_controller/JointTrajectoryController` | `/arm_controller/follow_joint_trajectory` (action), `/arm_controller/joint_trajectory` |
+| `gripper_controller` | `joint_trajectory_controller/JointTrajectoryController` | `/gripper_controller/follow_joint_trajectory` (action), `/gripper_controller/joint_trajectory` |
 
 ### Arm joints
 
@@ -31,7 +39,7 @@ so101_moveit_config/
 
 ## Run
 
-This package is not launched on its own. It is included automatically by the Gazebo launch file. To load controllers manually (e.g. after custom spawn):
+`move_group.launch.py` is included by `so101_bringup` (`so101_gazebo_moveit.launch.py`, `so101_fake_moveit.launch.py`). `load_ros2_controllers.launch.py` is included by the Gazebo launch file; to load controllers manually (e.g. after a custom spawn):
 
 ```bash
 ros2 launch so101_moveit_config load_ros2_controllers.launch.py controller_load_delay:=5.0
@@ -41,7 +49,7 @@ Launch arguments:
 
 | Argument | Default | Description |
 |----------|---------|-------------|
-| `controller_load_delay` | `5.0` | Seconds before loading the first controller |
+| `controller_load_delay` | `10.0` | Seconds before loading the first controller (the Gazebo launch passes `5.0`) |
 
 ## Control examples
 
@@ -54,11 +62,21 @@ ros2 topic pub --once /arm_controller/joint_trajectory trajectory_msgs/msg/Joint
 }"
 ```
 
-**Gripper open / close**:
+**Gripper open / close** (`follow_joint_trajectory` action; MoveIt uses the same interface):
 
 ```bash
-ros2 topic pub --once /gripper_controller/commands std_msgs/msg/Float64MultiArray "{data: [1.5]}"
-ros2 topic pub --once /gripper_controller/commands std_msgs/msg/Float64MultiArray "{data: [-0.17]}"
+ros2 action send_goal /gripper_controller/follow_joint_trajectory control_msgs/action/FollowJointTrajectory "{
+  trajectory: {
+    joint_names: ['gripper'],
+    points: [{positions: [1.5], time_from_start: {sec: 1, nanosec: 0}}]
+  }
+}"
+ros2 action send_goal /gripper_controller/follow_joint_trajectory control_msgs/action/FollowJointTrajectory "{
+  trajectory: {
+    joint_names: ['gripper'],
+    points: [{positions: [-0.17], time_from_start: {sec: 1, nanosec: 0}}]
+  }
+}"
 ```
 
 **Arm action interface**:
@@ -71,10 +89,3 @@ ros2 action send_goal /arm_controller/follow_joint_trajectory control_msgs/actio
   }
 }"
 ```
-
-## Planned
-
-- SRDF with planning groups
-- `move_group` launch files
-- MoveIt controller configuration (`moveit_controllers.yaml`)
-- Kinematics and joint limit overrides

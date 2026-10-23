@@ -7,13 +7,14 @@ for operating the robotic arm and gripper in a specific sequence.
 
 Launched Controllers:
     1. Joint State Broadcaster: Publishes joint states to /joint_states
-    2. Arm Controller: Controls the robot arm movements via /follow_joint_trajectory
-    3. Gripper Action Controller: Controls gripper actions via /gripper_action
+    2. Arm Controller: JointTrajectoryController, /arm_controller/follow_joint_trajectory
+    3. Gripper Controller: JointTrajectoryController,
+       /gripper_controller/follow_joint_trajectory
 
 Launch Sequence:
     1. Joint State Broadcaster
     2. Arm Controller (starts after Joint State Broadcaster)
-    3. Gripper Action Controller (starts after Arm Controller)
+    3. Gripper Controller (starts after Arm Controller)
 """
 
 from launch import LaunchDescription

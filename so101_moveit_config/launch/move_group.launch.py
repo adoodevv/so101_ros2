@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
-"""
-Launch MoveIt 2 for the SO-101 arm.
-"""
+"""Launch MoveIt 2 for the SO-101 arm."""
 
 import os
 
-from ament_index_python.packages import get_package_share_directory
+from ament_index_python.packages import get_package_share_directory, PackageNotFoundError
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, EmitEvent, OpaqueFunction, RegisterEventHandler
 from launch.conditions import IfCondition
@@ -17,14 +15,27 @@ from launch_ros.substitutions import FindPackageShare
 from moveit_configs_utils import MoveItConfigsBuilder
 
 
+def optional_move_group_capabilities():
+    """
+    Return move_group capabilities whose plugins are installed.
+
+    ExecuteTaskSolutionCapability comes from MoveIt Task Constructor, which is
+    optional; requesting it when MTC is absent makes move_group log a plugin
+    loading error on every start.
+    """
+    try:
+        get_package_share_directory('moveit_task_constructor_capabilities')
+    except PackageNotFoundError:
+        return {}
+    return {'capabilities': 'move_group/ExecuteTaskSolutionCapability'}
+
+
 def generate_launch_description():
     package_name_moveit_config = 'so101_moveit_config'
     package_name_description = 'so101_description'
 
     use_sim_time = LaunchConfiguration('use_sim_time')
     use_rviz = LaunchConfiguration('use_rviz')
-    use_camera = LaunchConfiguration('use_camera')
-    use_gazebo = LaunchConfiguration('use_gazebo')
     rviz_config_file = LaunchConfiguration('rviz_config_file')
     rviz_config_package = LaunchConfiguration('rviz_config_package')
 
@@ -53,6 +64,12 @@ def generate_launch_description():
         default_value='true',
         description='Include Gazebo ros2_control blocks in the robot description')
 
+    declare_use_fake_hardware_cmd = DeclareLaunchArgument(
+        name='use_fake_hardware',
+        default_value='false',
+        description='Use mock_components/GenericSystem in the robot description '
+                    '(mutually exclusive with use_gazebo)')
+
     declare_rviz_config_file_cmd = DeclareLaunchArgument(
         name='rviz_config_file',
         default_value='move_group.rviz',
@@ -67,6 +84,7 @@ def generate_launch_description():
         robot_name_str = LaunchConfiguration('robot_name').perform(context)
         use_camera_str = LaunchConfiguration('use_camera').perform(context)
         use_gazebo_str = LaunchConfiguration('use_gazebo').perform(context)
+        use_fake_hardware_str = LaunchConfiguration('use_fake_hardware').perform(context)
 
         pkg_share_moveit_config = get_package_share_directory(package_name_moveit_config)
         pkg_share_description = get_package_share_directory(package_name_description)
@@ -90,6 +108,7 @@ def generate_launch_description():
                 mappings={
                     'robot_name': robot_name_str,
                     'use_gazebo': use_gazebo_str,
+                    'use_fake_hardware': use_fake_hardware_str,
                     'use_camera': use_camera_str,
                 },
             )
@@ -110,9 +129,7 @@ def generate_launch_description():
             .to_moveit_configs()
         )
 
-        move_group_capabilities = {
-            'capabilities': 'move_group/ExecuteTaskSolutionCapability'
-        }
+        move_group_capabilities = optional_move_group_capabilities()
 
         start_move_group_node_cmd = Node(
             package='moveit_ros_move_group',
@@ -164,6 +181,7 @@ def generate_launch_description():
     ld.add_action(declare_use_rviz_cmd)
     ld.add_action(declare_use_camera_cmd)
     ld.add_action(declare_use_gazebo_cmd)
+    ld.add_action(declare_use_fake_hardware_cmd)
     ld.add_action(OpaqueFunction(function=configure_setup))
 
     return ld

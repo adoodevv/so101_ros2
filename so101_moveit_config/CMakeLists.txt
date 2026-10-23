@@ -7,12 +7,12 @@ endif()
 
 find_package(ament_cmake REQUIRED)
 
-install (
+install(
   DIRECTORY config launch rviz
   DESTINATION share/${PROJECT_NAME}
 )
 
-install (
+install(
   FILES .setup_assistant
   DESTINATION share/${PROJECT_NAME}
 )

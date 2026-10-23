@@ -35,6 +35,37 @@ so101_description/
 | `wrist_roll` | `wrist_link` → `gripper_link` |
 | `gripper` | `gripper_link` → `moving_jaw_so101_v1_link` |
 
+## Mounting and name prefixes
+
+`so101_robot.urdf.xacro` defines the `so101_robot` macro:
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `use_gazebo` | — | Use simplified Gazebo collision geometry |
+| `prefix` | `""` | Prepended to every link, joint, transmission, actuator and material name |
+| `parent` | `world` | Link that `${prefix}base_link` is attached to |
+| `xyz` / `rpy` | `0 0 0` | Pose of `${prefix}base_link` in `parent` |
+
+- `parent == world` (default): creates the `world` link plus a fixed `${prefix}world_joint`. In Gazebo this joint pins the base to the ground at the spawn pose.
+- Any other `parent`: creates `${prefix}mount_joint` from `parent` to `${prefix}base_link`; the caller provides the parent link and no `world` link is created.
+
+To mount the arm on another robot, include the macro from your own xacro:
+
+```xml
+<xacro:include filename="$(find so101_description)/urdf/so101_robot.urdf.xacro"/>
+<xacro:so101_robot use_gazebo="false" prefix="left_" parent="mount_link" xyz="0 0.2 0" rpy="0 0 0"/>
+```
+
+The top-level `robots/so101.urdf.xacro` exposes the same values as xacro args (`prefix`, `parent`, `xyz`, `rpy`). When `parent` is not `world` it also declares an empty `parent` link as the tree root, so the file still produces a standalone URDF:
+
+```bash
+xacro $(ros2 pkg prefix so101_description)/share/so101_description/urdf/robots/so101.urdf.xacro \
+  prefix:=left_ parent:=mount_link use_fake_hardware:=true > /tmp/so101_left.urdf
+check_urdf /tmp/so101_left.urdf
+```
+
+> **MoveIt and controllers assume an empty prefix.** `so101_moveit_config` (SRDF, `kinematics.yaml`, `joint_limits.yaml`, `moveit_controllers.yaml`, `ros2_controllers.yaml`, `initial_positions.yaml`) uses unprefixed joint and link names. A prefixed description is valid URDF and works with `robot_state_publisher`, but MoveIt and the controller configs must be adapted by the integrator.
+
 ## Run
 
 **RViz visualization** with interactive joint GUI:
@@ -53,6 +84,8 @@ Launch arguments:
 | `use_jsp` | `false` | Non-GUI joint state publisher |
 | `use_sim_time` | `false` | Use simulation clock |
 | `use_gazebo` | `false` | Embed ros2_control + Gazebo plugin in URDF |
+| `use_fake_hardware` | `false` | Use `mock_components/GenericSystem` in the ros2_control block (not with `use_gazebo`) |
+| `prefix` | `""` | Prefix for every link and joint name (see above) |
 | `robot_name` | `so101` | Robot name for controller config path |
 
 When launched from Gazebo, `use_gazebo:=true` is set automatically so the URDF includes the `gz_ros2_control` plugin and box collision geometry for the gripper.

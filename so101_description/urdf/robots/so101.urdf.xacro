@@ -3,20 +3,41 @@
     <xacro:arg name="robot_name" default="so101"/>
     <xacro:arg name="prefix" default=""/>
     <xacro:arg name="use_gazebo" default="false"/>
+    <!-- mock_components/GenericSystem for headless runs; mutually exclusive with use_gazebo -->
+    <xacro:arg name="use_fake_hardware" default="false"/>
     <xacro:arg name="use_camera" default="false"/>
+    <!-- Controller YAML for gz_ros2_control; empty uses so101_moveit_config's -->
+    <xacro:arg name="controllers_file" default=""/>
+    <!-- Mounting: link the arm's base_link attaches to, and its pose in that link.
+         A non-"world" parent is created here as an empty root link so this file
+         still yields a complete standalone URDF; to embed the arm in a larger
+         robot, include so101_robot.urdf.xacro and call the macro directly. -->
+    <xacro:arg name="parent" default="world"/>
+    <xacro:arg name="xyz" default="0 0 0"/>
+    <xacro:arg name="rpy" default="0 0 0"/>
 
     <xacro:include filename="$(find so101_description)/urdf/so101_robot.urdf.xacro"/>
-    <xacro:so101_robot use_gazebo="$(arg use_gazebo)"/>
+    <xacro:unless value="${'$(arg parent)' == 'world'}">
+        <link name="$(arg parent)"/>
+    </xacro:unless>
+    <xacro:so101_robot
+        use_gazebo="$(arg use_gazebo)"
+        prefix="$(arg prefix)"
+        parent="$(arg parent)"
+        xyz="$(arg xyz)"
+        rpy="$(arg rpy)"/>
 
     <xacro:include filename="$(find so101_description)/urdf/sensors/intel_rgbd_cam_d435.urdf.xacro"/>
 
     <xacro:include filename="$(find so101_description)/urdf/control/gazebo_sim_ros2_control.urdf.xacro"/>
     <xacro:load_gazebo_sim_ros2_control_plugin
         robot_name="$(arg robot_name)"
-        use_gazebo="$(arg use_gazebo)"/>
+        use_gazebo="$(arg use_gazebo)"
+        controllers_file="$(arg controllers_file)"/>
 
     <xacro:include filename="$(find so101_description)/urdf/control/so101_ros2_control.urdf.xacro"/>
     <xacro:so101_ros2_control
         prefix="$(arg prefix)"
-        use_gazebo="$(arg use_gazebo)"/>
+        use_gazebo="$(arg use_gazebo)"
+        use_fake_hardware="$(arg use_fake_hardware)"/>
 </robot>

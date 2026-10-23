@@ -78,7 +78,8 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'moveit_delay',
             default_value='10.0',
-            description='Seconds after launch before starting move_group (after controllers load)'),
+            description='Seconds after launch before starting move_group '
+                        '(after controllers load)'),
         gazebo_launch,
         delayed_moveit,
     ])

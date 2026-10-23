@@ -1,16 +1,46 @@
 # so101_bringup
 
-Convenience scripts for launching the SO-101 stack.
+Launch files and convenience scripts for running the SO-101 stack.
 
 ## Contents
 
 ```
 so101_bringup/
+├── launch/
+│   ├── so101_gazebo_moveit.launch.py   # Gazebo + controllers + move_group + MoveIt RViz
+│   └── so101_fake_moveit.launch.py     # Fake hardware + controllers + move_group, no Gazebo
 └── scripts/
-    └── so101_gazebo_launch.sh    # Gazebo + controllers + RViz
+    ├── so101_gazebo_launch.sh          # Gazebo + controllers + RViz
+    └── so101_gazebo_and_moveit.sh      # Gazebo, then MoveIt, as separate processes
 ```
 
-## Run
+## Fake hardware + MoveIt (no Gazebo)
+
+```bash
+source ~/ros2_ws/install/setup.bash
+ros2 launch so101_bringup so101_fake_moveit.launch.py            # headless
+ros2 launch so101_bringup so101_fake_moveit.launch.py use_rviz:=true
+```
+
+Starts `robot_state_publisher` (URDF with `use_fake_hardware:=true`),
+`ros2_control_node` with `so101_moveit_config/config/so101/ros2_controllers.yaml`
+backed by `mock_components/GenericSystem`, spawners for `joint_state_broadcaster`,
+`arm_controller` and `gripper_controller`, and `move_group`. Uses wall-clock time.
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `use_rviz` | `false` | Start RViz with the MotionPlanning plugin |
+| `robot_name` | `so101` | Config directory under `so101_moveit_config/config` |
+
+`so101_system_tests` runs its end-to-end tests against this launch file.
+
+## Gazebo + MoveIt
+
+```bash
+ros2 launch so101_bringup so101_gazebo_moveit.launch.py
+```
+
+## Scripts
 
 After building and sourcing the workspace:
 
@@ -39,6 +69,4 @@ ros2 launch so101_gazebo so101.gazebo.launch.py \
 
 ## Planned
 
-- Hardware bringup launch files
-- MoveIt demo launch
-- Real robot controller loading
+- Real hardware bringup launch files

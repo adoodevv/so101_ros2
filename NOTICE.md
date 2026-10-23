@@ -25,6 +25,9 @@ What is used here:
   prefixing, Gazebo collision primitives, transmissions and ros2_control
   blocks.
 
-These files are distributed under the terms of the Apache License 2.0, a copy
-of which is available at <https://www.apache.org/licenses/LICENSE-2.0>. The
-BSD-3-Clause license of this repository does not apply to them.
+These files are distributed under the terms of the Apache License 2.0. The
+upstream license text is included at
+[so101_description/meshes/so_arm101/LICENSE](so101_description/meshes/so_arm101/LICENSE)
+(installed with the meshes) and is also available at
+<https://www.apache.org/licenses/LICENSE-2.0>. The BSD-3-Clause license of
+this repository does not apply to them.

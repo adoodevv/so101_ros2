@@ -16,7 +16,7 @@ setup(
     maintainer='adoodevv',
     maintainer_email='adoojonathan412@gmail.com',
     description='TODO: Package description',
-    license='TODO: License declaration',
+    license='BSD-3-Clause',
     extras_require={
         'test': [
             'pytest',

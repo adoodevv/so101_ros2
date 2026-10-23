@@ -122,6 +122,8 @@ Example — empty world, no RViz:
 ros2 launch so101_gazebo so101.gazebo.launch.py world_file:=empty.world use_rviz:=false
 ```
 
+> **Slow machine?** Gazebo, its GUI, camera rendering and RViz together are heavy; watch the real-time factor in the bottom-right of the Gazebo window. Dropping the extras helps most: `ros2 launch so101_gazebo so101.gazebo.launch.py world_file:=empty.world use_camera:=false use_rviz:=false`. Everything runs on simulation time, so a low real-time factor makes motions slow, not wrong.
+
 > **Note:** `pick_and_place.world` downloads models from [Gazebo Fuel](https://app.gazebosim.org) on first run. An internet connection is required once; models are cached locally afterward.
 
 ### 3. Gazebo + MoveIt 2 (recommended demo)
@@ -244,9 +246,3 @@ For launch arguments, controller details, and world descriptions, see the per-pa
 - [so101_system_tests](so101_system_tests/README.md)
 
 Third-party material (SO-ARM100 meshes and URDF data, Apache-2.0) is listed in [NOTICE.md](NOTICE.md). Release notes are in [CHANGELOG.md](CHANGELOG.md).
-
-## Roadmap
-
-description → simulation → planning → **hardware control**
-
-A ros2_control hardware interface for the real arm is the next milestone.
